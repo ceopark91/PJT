@@ -1,19 +1,21 @@
+// ============================================
+// CORS 테스트용 doGet (실제 해결은 프론트엔드에서)
+// ============================================
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    error: 'Use POST method'
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ============================================
+// 시트 헤더 정의
+// ============================================
 const SHEET_HEADERS = {
   Projects: [
-    'projectId',
-    'projectNumber',
-    'projectName',
-    'manager',
-    'department',
-    'status',
-    'priority',
-    'requestDate',
-    'deliveryDate',
-    'notes',
-    'earlyDeliveryDate',
-    'earlyDeliveryNotes',
-    'createdAt',
-    'updatedAt'
+    'projectId', 'projectNumber', 'projectName', 'manager', 'department',
+    'status', 'priority', 'requestDate', 'deliveryDate', 'notes',
+    'earlyDeliveryDate', 'earlyDeliveryNotes', 'createdAt', 'updatedAt',
+    'deliveryCompletedAt'
   ],
   Workflow: ['projectId', 'department', 'completed', 'completedAt', 'completedBy'],
   Files: ['projectId', 'department', 'fileName', 'fileId', 'drivePath', 'size', 'mimeType', 'uploadedBy', 'uploadedAt', 'isDeleted'],
@@ -28,6 +30,9 @@ const SHEET_HEADERS = {
 const DRIVE_ROOT_PROPERTY = 'PROJECT_DRIVE_ROOT_ID';
 const DRIVE_ROOT_NAME = 'Manufacturing_Project_Files';
 
+// ============================================
+// 메인 진입점
+// ============================================
 function doPost(e) {
   try {
     const payload = JSON.parse(e.postData.contents || '{}');
@@ -38,117 +43,49 @@ function doPost(e) {
     if (action === 'syncAll') {
       return jsonResponse(syncAll(payload));
     }
-    return jsonResponse({ error: 'Unknown action' }, 400);
+    return jsonResponse({ success: false, error: 'Unknown action' });
   } catch (err) {
-    return jsonResponse({ error: err.message || String(err) }, 500);
+    return jsonResponse({ success: false, error: err.message || String(err) });
   }
 }
 
-function jsonResponse(data, status) {
+function jsonResponse(data) {
   const output = ContentService.createTextOutput(JSON.stringify(data));
   output.setMimeType(ContentService.MimeType.JSON);
-  if (status) {
-    output.setResponseCode(status);
-  }
   return output;
 }
 
-function getSheet(name) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(name);
-  if (!sheet) {
-    sheet = ss.insertSheet(name);
-  }
-  ensureHeaderRow(sheet, SHEET_HEADERS[name]);
-  return sheet;
-}
-
-function ensureHeaderRow(sheet, headers) {
-  const firstRow = sheet.getRange(1, 1, 1, sheet.getLastColumn() || headers.length).getValues()[0] || [];
-  const hasHeaders = headers.every((header, idx) => firstRow[idx] === header);
-  if (!hasHeaders) {
-    sheet.clear();
-    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  }
-}
-
-function getDriveRootFolder() {
-  const props = PropertiesService.getScriptProperties();
-  let rootId = props.getProperty(DRIVE_ROOT_PROPERTY);
-  if (rootId) {
-    return DriveApp.getFolderById(rootId);
-  }
-  const rootFolder = DriveApp.createFolder(DRIVE_ROOT_NAME);
-  props.setProperty(DRIVE_ROOT_PROPERTY, rootFolder.getId());
-  return rootFolder;
-}
-
-function getDepartmentFolder(projectFolder, type) {
-  const deptNameMap = {
-    request: '영업',
-    etc: '영업',
-    design: '설계',
-    production: '생산',
-    aftercare: 'AS'
-  };
-  const deptName = deptNameMap[type] || type;
-  const folders = projectFolder.getFoldersByName(deptName);
-  if (folders.hasNext()) {
-    return folders.next();
-  }
-  return projectFolder.createFolder(deptName);
-}
-
-function getProjectFolder(rootFolder, projectNumber) {
-  const folderName = projectNumber || 'UNKNOWN_PROJECT';
-  const folders = rootFolder.getFoldersByName(folderName);
-  if (folders.hasNext()) {
-    return folders.next();
-  }
-  return rootFolder.createFolder(folderName);
-}
-
-function dataUrlToBlob(dataUrl, fileName) {
-  const match = String(dataUrl || '').match(/^data:(.*?);base64,(.*)$/);
-  if (!match) return null;
-  const mimeType = match[1];
-  const bytes = Utilities.base64Decode(match[2]);
-  return Utilities.newBlob(bytes, mimeType, fileName || 'file');
-}
-
-function getDriveViewUrl(fileId) {
-  return fileId ? `https://drive.google.com/uc?id=${fileId}` : '';
-}
-
+// ============================================
+// 데이터 동기화
+// ============================================
 function syncAll(payload) {
   const projects = Array.isArray(payload.projects) ? payload.projects : [];
   const deletedProjects = Array.isArray(payload.deletedProjects) ? payload.deletedProjects : [];
   const userName = payload.user && payload.user.name ? payload.user.name : 'system';
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   const rootFolder = getDriveRootFolder();
-  const existingFileIds = readFileIdsMap();
-  const newFileIds = {};
-
-  const projectRows = [];
-  const workflowRows = [];
-  const fileRows = [];
-  const accountingRows = [];
-  const modelRows = [];
-  const designRows = [];
-  const productionRows = [];
-  const aftercareRows = [];
+  const rowsMap = {
+    Projects: [],
+    Workflow: [],
+    Files: [],
+    Accounting: [],
+    AccountingModels: [],
+    Design: [],
+    Production: [],
+    Aftercare: []
+  };
   const updatedProjects = [];
+  const projectIds = [];
 
   projects.forEach(project => {
-    const projectId = project.id || project.projectId || String(new Date().getTime());
-    const projectNumber = project.projectNumber || '';
+    const projectId = project.id || project.projectId || (Date.now() + '-' + Math.random().toString(36).substr(2, 9));
     project.id = projectId;
     project.projectId = projectId;
     project.updatedAt = project.updatedAt || new Date().toISOString();
     project.createdAt = project.createdAt || project.updatedAt;
+    projectIds.push(projectId);
 
-    projectRows.push([
+    rowsMap.Projects.push([
       projectId,
       project.projectNumber || '',
       project.projectName || '',
@@ -162,13 +99,14 @@ function syncAll(payload) {
       project.earlyDeliveryDate || '',
       project.earlyDeliveryNotes || '',
       project.createdAt || '',
-      project.updatedAt || ''
+      project.updatedAt || '',
+      project.deliveryCompletedAt || ''
     ]);
 
     const workflow = project.workflow || {};
     Object.keys(workflow).forEach(dept => {
       const info = workflow[dept] || {};
-      workflowRows.push([
+      rowsMap.Workflow.push([
         projectId,
         dept,
         info.completed ? 'TRUE' : 'FALSE',
@@ -177,13 +115,13 @@ function syncAll(payload) {
       ]);
     });
 
-    const projectFolder = getProjectFolder(rootFolder, projectNumber);
+    const projectFolder = getProjectFolder(rootFolder, project.projectNumber || '');
     const fileGroups = [
       { type: 'request', files: project.requestFiles || [] },
       { type: 'etc', files: project.etcFiles || [] },
-      { type: 'design', files: (project.design && project.design.files) ? project.design.files : [] },
-      { type: 'production', files: (project.production && project.production.files) ? project.production.files : [] },
-      { type: 'aftercare', files: (project.aftercare && project.aftercare.files) ? project.aftercare.files : [] }
+      { type: 'design', files: project.design && project.design.files ? project.design.files : [] },
+      { type: 'production', files: project.production && project.production.files ? project.production.files : [] },
+      { type: 'aftercare', files: project.aftercare && project.aftercare.files ? project.aftercare.files : [] }
     ];
 
     fileGroups.forEach(group => {
@@ -194,7 +132,8 @@ function syncAll(payload) {
         let mimeType = file.type || '';
         let size = file.size || 0;
         let uploadedAt = file.uploadedAt || '';
-        if (!fileId && dataUrl) {
+        
+        if (!fileId && dataUrl && String(dataUrl).startsWith('data:')) {
           const blob = dataUrlToBlob(dataUrl, file.name);
           if (blob) {
             const driveFile = deptFolder.createFile(blob);
@@ -216,11 +155,7 @@ function syncAll(payload) {
         file.drivePath = drivePath;
         file.dataUrl = fileId ? getDriveViewUrl(fileId) : '';
 
-        if (fileId) {
-          newFileIds[fileId] = true;
-        }
-
-        fileRows.push([
+        rowsMap.Files.push([
           projectId,
           group.type,
           file.name || '',
@@ -236,7 +171,7 @@ function syncAll(payload) {
     });
 
     if (project.accounting) {
-      accountingRows.push([
+      rowsMap.Accounting.push([
         projectId,
         project.accounting.customerName || '',
         project.accounting.requestDueDate || '',
@@ -244,30 +179,26 @@ function syncAll(payload) {
         project.accounting.memo || ''
       ]);
       if (Array.isArray(project.accounting.models)) {
-        project.accounting.models.forEach(model => {
-          modelRows.push([
+        project.accounting.models.forEach(m => {
+          const quantity = m.qty || m.quantity || '';
+          rowsMap.AccountingModels.push([
             projectId,
-            model.serialNumber || '',
-            model.modelName || '',
-            model.quantity || '',
-            model.wpDueDate || '',
-            model.productDueDate || '',
-            model.spec || ''
+            m.serialNumber || '',
+            m.modelName || '',
+            quantity,
+            m.wpDueDate || '',
+            m.productDueDate || '',
+            m.spec || ''
           ]);
         });
       }
     }
 
     if (project.design) {
-      designRows.push([
-        projectId,
-        project.design.memo || '',
-        project.updatedAt || ''
-      ]);
+      rowsMap.Design.push([projectId, project.design.memo || '', project.updatedAt || '']);
     }
-
     if (project.production) {
-      productionRows.push([
+      rowsMap.Production.push([
         projectId,
         project.production.memo || '',
         project.production.started ? 'TRUE' : 'FALSE',
@@ -275,9 +206,8 @@ function syncAll(payload) {
         project.updatedAt || ''
       ]);
     }
-
     if (project.aftercare) {
-      aftercareRows.push([
+      rowsMap.Aftercare.push([
         projectId,
         project.aftercare.memo || '',
         project.deliveryCompletedAt || '',
@@ -288,274 +218,313 @@ function syncAll(payload) {
     updatedProjects.push(project);
   });
 
-  trashRemovedFiles(existingFileIds, newFileIds);
-
-  writeSheet('Projects', SHEET_HEADERS.Projects, projectRows);
-  writeSheet('Workflow', SHEET_HEADERS.Workflow, workflowRows);
-  writeSheet('Files', SHEET_HEADERS.Files, fileRows);
-  writeSheet('Accounting', SHEET_HEADERS.Accounting, accountingRows);
-  writeSheet('AccountingModels', SHEET_HEADERS.AccountingModels, modelRows);
-  writeSheet('Design', SHEET_HEADERS.Design, designRows);
-  writeSheet('Production', SHEET_HEADERS.Production, productionRows);
-  writeSheet('Aftercare', SHEET_HEADERS.Aftercare, aftercareRows);
-  writeSheet(
-    'Deleted',
-    SHEET_HEADERS.Deleted,
-    deletedProjects.map(item => ([
-      item.id || '',
-      item.projectNumber || '',
-      item.projectName || '',
-      item.deletedAt || '',
-      item.deletedBy || '',
-      JSON.stringify(item || {})
-    ]))
-  );
-
-  return {
-    projects: updatedProjects,
-    deletedProjects
-  };
-}
-
-function trashRemovedFiles(existingFileIds, newFileIds) {
-  Object.keys(existingFileIds).forEach(fileId => {
-    if (!newFileIds[fileId]) {
-      try {
-        DriveApp.getFileById(fileId).setTrashed(true);
-      } catch (err) {
-        // ignore missing file
-      }
-    }
+  Object.keys(rowsMap).forEach(sheetName => {
+    upsertRowsByProjectIds(sheetName, SHEET_HEADERS[sheetName], rowsMap[sheetName], projectIds);
   });
+
+  // 삭제 히스토리 중복 방지 (개선)
+  if (deletedProjects.length > 0) {
+    const existingDeleted = readDeleted();
+    const existingIds = new Set(existingDeleted.map(d => d.id));
+    const existingNumbers = new Set(existingDeleted.map(d => d.projectNumber));
+    
+    const newDeletedRows = deletedProjects
+      .filter(item => {
+        if (item.id && existingIds.has(item.id)) return false;
+        if (item.projectNumber && existingNumbers.has(item.projectNumber)) return false;
+        return true;
+      })
+      .map(item => ([
+        item.id || (Date.now() + '-' + Math.random().toString(36).substr(2, 9)),
+        item.projectNumber || '',
+        item.projectName || '',
+        item.deletedAt || new Date().toISOString(),
+        item.deletedBy || userName,
+        JSON.stringify(item || {})
+      ]));
+      
+    if (newDeletedRows.length > 0) {
+      appendRows('Deleted', SHEET_HEADERS.Deleted, newDeletedRows);
+    }
+  }
+
+  return { success: true, projects: updatedProjects, deletedProjects };
 }
 
-function writeSheet(name, headers, rows) {
-  const sheet = getSheet(name);
-  sheet.clear();
-  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-  if (!rows || rows.length === 0) return;
-  sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-}
-
+// ============================================
+// 데이터 로드
+// ============================================
 function loadAll() {
-  const projects = readProjects();
-  const workflowMap = readWorkflow();
-  const filesMap = readFiles();
-  const accountingMap = readAccounting();
-  const modelsMap = readAccountingModels();
-  const designMap = readDesign();
-  const productionMap = readProduction();
-  const aftercareMap = readAftercare();
+  const projects = readSheetData('Projects');
+  const workflowMap = readWorkflowMap();
+  const filesMap = readFilesMap();
+  const accMap = readGenericMap('Accounting');
+  const modelMap = readListMap('AccountingModels');
+  const designMap = readGenericMap('Design');
+  const prodMap = readGenericMap('Production');
+  const asMap = readGenericMap('Aftercare');
 
-  const projectList = projects.map(project => {
-    const projectId = project.id;
-    project.workflow = workflowMap[projectId] || project.workflow || {};
-    project.requestFiles = filesMap[projectId] ? (filesMap[projectId].request || []) : [];
-    project.etcFiles = filesMap[projectId] ? (filesMap[projectId].etc || []) : [];
-    project.accounting = accountingMap[projectId] || null;
-    if (project.accounting && modelsMap[projectId]) {
-      project.accounting.models = modelsMap[projectId];
-    }
-    project.design = designMap[projectId] || null;
-    if (project.design && filesMap[projectId] && filesMap[projectId].design) {
-      project.design.files = filesMap[projectId].design;
-    }
-    project.production = productionMap[projectId] || null;
-    if (project.production && filesMap[projectId] && filesMap[projectId].production) {
-      project.production.files = filesMap[projectId].production;
-    }
-    project.aftercare = aftercareMap[projectId] || null;
-    if (project.aftercare && filesMap[projectId] && filesMap[projectId].aftercare) {
-      project.aftercare.files = filesMap[projectId].aftercare;
-    }
-    return project;
+  const projectList = projects.map(p => {
+    const id = p.id;
+    p.workflow = workflowMap[id] || {};
+    p.requestFiles = filesMap[id] ? (filesMap[id].request || []) : [];
+    p.etcFiles = filesMap[id] ? (filesMap[id].etc || []) : [];
+    p.accounting = accMap[id] || null;
+    if (p.accounting) p.accounting.models = modelMap[id] || [];
+    p.design = designMap[id] || null;
+    if (p.design) p.design.files = filesMap[id] ? (filesMap[id].design || []) : [];
+    p.production = prodMap[id] || null;
+    if (p.production) p.production.files = filesMap[id] ? (filesMap[id].production || []) : [];
+    p.aftercare = asMap[id] || null;
+    if (p.aftercare) p.aftercare.files = filesMap[id] ? (filesMap[id].aftercare || []) : [];
+    return p;
   });
 
-  return {
-    projects: projectList,
-    deletedProjects: readDeleted()
-  };
+  return { success: true, projects: projectList, deletedProjects: readDeleted() };
 }
 
-function readProjects() {
-  const sheet = getSheet('Projects');
+// ============================================
+// 안전한 Upsert
+// ============================================
+function upsertRowsByProjectIds(name, headers, newRows, projectIds) {
+  if (!projectIds || projectIds.length === 0) return;
+  const sheet = getSheet(name);
+  const idIdx = headers.indexOf('projectId');
+  if (idIdx === -1) return;
+  
+  const lastRow = sheet.getLastRow();
+  let finalData = [];
+  const targetIds = new Set(projectIds.map(String));
+
+  if (lastRow > 1) {
+    const existingData = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+    finalData = existingData.filter(row => row[idIdx] && !targetIds.has(String(row[idIdx])));
+  }
+  
+  if (newRows && newRows.length > 0) {
+    finalData = finalData.concat(newRows);
+  }
+  
+  if (lastRow > 1) {
+    const rowsToDelete = lastRow - 1;
+    if (rowsToDelete > 0) {
+      sheet.deleteRows(2, rowsToDelete);
+    }
+  }
+  
+  if (finalData.length > 0) {
+    sheet.getRange(2, 1, finalData.length, headers.length).setValues(finalData);
+  }
+}
+
+// ============================================
+// 시트 관리
+// ============================================
+function getSheet(name) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+  ensureHeaderRow(sheet, SHEET_HEADERS[name]);
+  return sheet;
+}
+
+function appendRows(name, headers, rows) {
+  if (!rows || rows.length === 0) return;
+  const sheet = getSheet(name);
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, headers.length).setValues(rows);
+}
+
+// 안전한 헤더 관리 (데이터 유지!)
+function ensureHeaderRow(sheet, headers) {
+  const lastCol = sheet.getLastColumn();
+  
+  if (lastCol === 0) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    return;
+  }
+  
+  const existingHeaders = sheet.getRange(1, 1, 1, lastCol).getValues()[0] || [];
+  
+  const needsUpdate = headers.some((header, idx) => existingHeaders[idx] !== header);
+  if (!needsUpdate && lastCol >= headers.length) {
+    return;
+  }
+  
+  if (headers.length > lastCol) {
+    const newHeaders = headers.slice(lastCol);
+    if (newHeaders.length > 0) {
+      sheet.getRange(1, lastCol + 1, 1, newHeaders.length).setValues([newHeaders]);
+    }
+  }
+  
+  headers.forEach((header, idx) => {
+    if (existingHeaders[idx] !== header) {
+      sheet.getRange(1, idx + 1).setValue(header);
+    }
+  });
+}
+
+// ============================================
+// Drive 관리
+// ============================================
+function getDriveRootFolder() {
+  const props = PropertiesService.getScriptProperties();
+  let rootId = props.getProperty(DRIVE_ROOT_PROPERTY);
+  if (rootId) {
+    try {
+      return DriveApp.getFolderById(rootId);
+    } catch (err) {}
+  }
+  const rootFolder = DriveApp.createFolder(DRIVE_ROOT_NAME);
+  props.setProperty(DRIVE_ROOT_PROPERTY, rootFolder.getId());
+  return rootFolder;
+}
+
+function getProjectFolder(rootFolder, pNum) {
+  const name = pNum || 'UNKNOWN';
+  const folders = rootFolder.getFoldersByName(name);
+  return folders.hasNext() ? folders.next() : rootFolder.createFolder(name);
+}
+
+function getDepartmentFolder(pFolder, type) {
+  const map = { 
+    request: '영업', 
+    etc: '영업', 
+    design: '설계', 
+    production: '생산', 
+    aftercare: 'AS' 
+  };
+  const name = map[type] || type;
+  const folders = pFolder.getFoldersByName(name);
+  return folders.hasNext() ? folders.next() : pFolder.createFolder(name);
+}
+
+function dataUrlToBlob(url, name) {
+  const match = String(url || '').match(/^data:(.*?);base64,(.*)$/);
+  if (!match) return null;
+  return Utilities.newBlob(Utilities.base64Decode(match[2]), match[1], name || 'file');
+}
+
+function getDriveViewUrl(fileId) {
+  return fileId ? `https://drive.google.com/uc?id=${fileId}` : '';
+}
+
+// ============================================
+// 데이터 읽기
+// ============================================
+function readSheetData(name) {
+  const sheet = getSheet(name);
   const values = sheet.getDataRange().getValues();
-  const headers = values.shift() || [];
-  return values.filter(row => row[0]).map(row => ({
-    id: row[0],
-    projectId: row[0],
-    projectNumber: row[1] || '',
-    projectName: row[2] || '',
-    manager: row[3] || '',
-    department: row[4] || '',
-    status: row[5] || '',
-    priority: row[6] || '',
-    requestDate: row[7] || '',
-    deliveryDate: row[8] || '',
-    notes: row[9] || '',
-    earlyDeliveryDate: row[10] || '',
-    earlyDeliveryNotes: row[11] || '',
-    createdAt: row[12] || '',
-    updatedAt: row[13] || ''
+  values.shift();
+  return values.filter(r => r[0]).map(r => ({
+    id: r[0],
+    projectId: r[0],
+    projectNumber: r[1],
+    projectName: r[2],
+    manager: r[3],
+    department: r[4],
+    status: r[5],
+    priority: r[6],
+    requestDate: r[7],
+    deliveryDate: r[8],
+    notes: r[9],
+    earlyDeliveryDate: r[10],
+    earlyDeliveryNotes: r[11],
+    createdAt: r[12],
+    updatedAt: r[13],
+    deliveryCompletedAt: r[14] || null
   }));
 }
 
-function readWorkflow() {
-  const sheet = getSheet('Workflow');
-  const values = sheet.getDataRange().getValues();
+function readWorkflowMap() {
+  const values = getSheet('Workflow').getDataRange().getValues();
   values.shift();
   const map = {};
-  values.forEach(row => {
-    const projectId = row[0];
-    if (!projectId) return;
-    if (!map[projectId]) map[projectId] = {};
-    map[projectId][row[1]] = {
-      completed: row[2] === 'TRUE' || row[2] === true,
-      completedAt: row[3] || null,
-      completedBy: row[4] || null
+  values.forEach(r => {
+    if (!r[0]) return;
+    if (!map[r[0]]) map[r[0]] = {};
+    map[r[0]][r[1]] = {
+      completed: r[2] === 'TRUE' || r[2] === true,
+      completedAt: r[3],
+      completedBy: r[4]
     };
   });
   return map;
 }
 
-function readFiles() {
-  const sheet = getSheet('Files');
-  const values = sheet.getDataRange().getValues();
+function readFilesMap() {
+  const values = getSheet('Files').getDataRange().getValues();
   values.shift();
   const map = {};
-  values.forEach(row => {
-    const projectId = row[0];
-    const type = row[1];
-    if (!projectId || !type) return;
-    if (!map[projectId]) map[projectId] = {};
-    if (!map[projectId][type]) map[projectId][type] = [];
-    const fileId = row[3] || '';
-    map[projectId][type].push({
-      name: row[2] || '',
-      fileId,
-      drivePath: row[4] || '',
-      size: Number(row[5] || 0),
-      type: row[6] || '',
-      uploadedBy: row[7] || '',
-      uploadedAt: row[8] || '',
-      dataUrl: fileId ? getDriveViewUrl(fileId) : ''
+  values.forEach(r => {
+    if (!r[0]) return;
+    if (!map[r[0]]) map[r[0]] = {};
+    if (!map[r[0]][r[1]]) map[r[0]][r[1]] = [];
+    map[r[0]][r[1]].push({
+      name: r[2],
+      fileId: r[3],
+      drivePath: r[4],
+      size: Number(r[5] || 0),
+      type: r[6],
+      uploadedBy: r[7],
+      uploadedAt: r[8],
+      dataUrl: r[3] ? getDriveViewUrl(r[3]) : ''
     });
   });
   return map;
 }
 
-function readFileIdsMap() {
-  const sheet = getSheet('Files');
-  const values = sheet.getDataRange().getValues();
+function readGenericMap(name) {
+  const values = getSheet(name).getDataRange().getValues();
   values.shift();
   const map = {};
-  values.forEach(row => {
-    const fileId = row[3];
-    if (fileId) map[fileId] = true;
+  values.forEach(r => {
+    if (!r[0]) return;
+    if (name === 'Accounting') {
+      map[r[0]] = { customerName: r[1], requestDueDate: r[2], wpRequestDueDate: r[3], memo: r[4] };
+    }
+    if (name === 'Design') {
+      map[r[0]] = { memo: r[1] };
+    }
+    if (name === 'Production') {
+      map[r[0]] = { memo: r[1], started: r[2] === 'TRUE' || r[2] === true, startedAt: r[3] };
+    }
+    if (name === 'Aftercare') {
+      map[r[0]] = { memo: r[1] };
+    }
   });
   return map;
 }
 
-function readAccounting() {
-  const sheet = getSheet('Accounting');
-  const values = sheet.getDataRange().getValues();
+function readListMap(name) {
+  const values = getSheet(name).getDataRange().getValues();
   values.shift();
   const map = {};
-  values.forEach(row => {
-    const projectId = row[0];
-    if (!projectId) return;
-    map[projectId] = {
-      customerName: row[1] || '',
-      requestDueDate: row[2] || '',
-      wpRequestDueDate: row[3] || '',
-      memo: row[4] || '',
-      models: []
-    };
-  });
-  return map;
-}
-
-function readAccountingModels() {
-  const sheet = getSheet('AccountingModels');
-  const values = sheet.getDataRange().getValues();
-  values.shift();
-  const map = {};
-  values.forEach(row => {
-    const projectId = row[0];
-    if (!projectId) return;
-    if (!map[projectId]) map[projectId] = [];
-    map[projectId].push({
-      serialNumber: row[1] || '',
-      modelName: row[2] || '',
-      quantity: row[3] || '',
-      wpDueDate: row[4] || '',
-      productDueDate: row[5] || '',
-      spec: row[6] || ''
+  values.forEach(r => {
+    if (!r[0]) return;
+    if (!map[r[0]]) map[r[0]] = [];
+    map[r[0]].push({
+      serialNumber: r[1],
+      modelName: r[2],
+      qty: r[3],
+      quantity: r[3],
+      wpDueDate: r[4],
+      productDueDate: r[5],
+      spec: r[6]
     });
-  });
-  return map;
-}
-
-function readDesign() {
-  const sheet = getSheet('Design');
-  const values = sheet.getDataRange().getValues();
-  values.shift();
-  const map = {};
-  values.forEach(row => {
-    const projectId = row[0];
-    if (!projectId) return;
-    map[projectId] = {
-      memo: row[1] || '',
-      files: []
-    };
-  });
-  return map;
-}
-
-function readProduction() {
-  const sheet = getSheet('Production');
-  const values = sheet.getDataRange().getValues();
-  values.shift();
-  const map = {};
-  values.forEach(row => {
-    const projectId = row[0];
-    if (!projectId) return;
-    map[projectId] = {
-      memo: row[1] || '',
-      started: row[2] === 'TRUE' || row[2] === true,
-      startedAt: row[3] || '',
-      files: []
-    };
-  });
-  return map;
-}
-
-function readAftercare() {
-  const sheet = getSheet('Aftercare');
-  const values = sheet.getDataRange().getValues();
-  values.shift();
-  const map = {};
-  values.forEach(row => {
-    const projectId = row[0];
-    if (!projectId) return;
-    map[projectId] = {
-      memo: row[1] || '',
-      files: []
-    };
   });
   return map;
 }
 
 function readDeleted() {
-  const sheet = getSheet('Deleted');
-  const values = sheet.getDataRange().getValues();
+  const values = getSheet('Deleted').getDataRange().getValues();
   values.shift();
-  return values.map(row => ({
-    id: row[0] || '',
-    projectNumber: row[1] || '',
-    projectName: row[2] || '',
-    deletedAt: row[3] || '',
-    deletedBy: row[4] || '',
-    payloadJson: row[5] || ''
+  return values.map(r => ({
+    id: r[0],
+    projectNumber: r[1],
+    projectName: r[2],
+    deletedAt: r[3],
+    deletedBy: r[4],
+    payloadJson: r[5]
   }));
 }
