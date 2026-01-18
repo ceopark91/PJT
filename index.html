@@ -1,0 +1,3235 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>제조 프로젝트 관리 시스템 - Google 생태계 연동</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .sidebar-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .status-badge {
+            transition: all 0.2s ease;
+        }
+        .status-badge:hover {
+            transform: scale(1.05);
+        }
+        .file-drop-zone {
+            border: 2px dashed #cbd5e0;
+            transition: all 0.3s ease;
+        }
+        .file-drop-zone:hover {
+            border-color: #667eea;
+            background-color: #f7fafc;
+        }
+        .file-drop-zone.dragover {
+            border-color: #667eea;
+            background-color: #ebf4ff;
+        }
+        .file-item {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s ease;
+        }
+        .file-item:hover {
+            background: #edf2f7;
+        }
+        .workflow-step {
+            position: relative;
+        }
+        .workflow-step::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: -20px;
+            width: 0;
+            height: 0;
+            border-left: 10px solid #667eea;
+            border-top: 10px solid transparent;
+            border-bottom: 10px solid transparent;
+        }
+        .workflow-step:last-child::after {
+            display: none;
+        }
+        .workflow-active {
+            background: #667eea;
+            color: white;
+        }
+        .workflow-completed {
+            background: #48bb78;
+            color: white;
+        }
+        .workflow-pending {
+            background: #e2e8f0;
+            color: #718096;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root">
+        <div class="min-h-screen bg-gray-50 flex">
+            <!-- 사이드바 -->
+            <aside class="w-80 bg-white shadow-lg border-r border-gray-200 flex flex-col">
+                <!-- 헤더 -->
+                <div class="p-6 border-b border-gray-200">
+                    <h1 class="text-xl font-bold text-gray-900 mb-2">제조 프로젝트 관리</h1>
+                    <button id="addProjectBtn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                        <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        새 프로젝트
+                    </button>
+                </div>
+
+                <!-- 검색 -->
+                <div class="p-4 border-b border-gray-200">
+                    <input type="text" id="searchInput" placeholder="프로젝트 검색..." 
+                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+
+                <!-- 업무 흐름 -->
+                <div class="p-4 border-b border-gray-200">
+                    <h3 class="text-sm font-medium text-gray-700 mb-3">업무 흐름</h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByStatus('all')">
+                            <span class="text-sm text-gray-600">전체</span>
+                            <span id="countAll" class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByDepartment('영업')">
+                            <span class="text-sm text-gray-600">영업</span>
+                            <span id="countSales" class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full status-badge">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByDepartment('경리')">
+                            <span class="text-sm text-gray-600">경리</span>
+                            <span id="countAccounting" class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full status-badge">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByDepartment('설계')">
+                            <span class="text-sm text-gray-600">설계</span>
+                            <span id="countDesign" class="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full status-badge">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByProductionStatus('production_pending')">
+                            <span class="text-sm text-gray-600">생산 미확인</span>
+                            <span id="countProductionPending" class="px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 rounded-full status-badge">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByProductionStatus('production_in_progress')">
+                            <span class="text-sm text-gray-600">생산 진행중</span>
+                            <span id="countProductionInProgress" class="px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 rounded-full status-badge">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByStatus('준비 완료')">
+                            <span class="text-sm text-gray-600">준비 완료</span>
+                            <span id="countCompleted" class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByDeliveryCompleted()">
+                            <span class="text-sm text-gray-600">납품 완료</span>
+                            <span id="countDeliveryCompleted" class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 통계 카드 -->
+                <div class="p-4">
+                    <h3 class="text-sm font-medium text-gray-700 mb-3">통계</h3>
+                    <div class="sidebar-card rounded-lg p-4 text-white">
+                        <div class="text-center">
+                            <div class="text-2xl font-bold" id="totalProjects">0</div>
+                            <div class="text-sm opacity-90">전체 프로젝트</div>
+                        </div>
+                        <div class="mt-4 grid grid-cols-3 gap-2 text-xs">
+                            <div class="text-center">
+                                <div class="font-semibold" id="inProgressCount">0</div>
+                                <div class="opacity-90">진행중</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-semibold" id="completedCount">0</div>
+                                <div class="opacity-90">준비 완료</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-semibold" id="deliveryCompletedCount">0</div>
+                                <div class="opacity-90">납품 완료</div>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="openDeleteHistory" class="mt-3 w-full px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm">
+                        삭제 히스토리 조회
+                    </button>
+                </div>
+
+                <!-- Google 로그인 상태 -->
+                <div class="mt-auto p-4 border-t border-gray-200">
+                    <div id="userInfo" class="text-sm text-gray-600 mb-3"></div>
+                    <button id="googleSignIn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors mb-2">
+                        Google 로그인
+                    </button>
+                    <button id="googleSignOut" class="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors hidden">
+                        로그아웃
+                    </button>
+                </div>
+            </aside>
+
+            <!-- 메인 콘텐츠 -->
+            <main class="flex-1">
+                <!-- 헤더 -->
+                <header class="bg-white shadow-sm border-b">
+                    <div class="max-w-7xl mx-auto px-6 py-4">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h2 class="text-2xl font-bold text-gray-900">프로젝트 현황판</h2>
+                                <p class="text-gray-600">실시간 프로젝트 진행 상황을 확인하세요</p>
+                            </div>
+                            <div class="flex items-center space-x-4">
+                                <div class="text-right">
+                                    <div id="currentDate" class="text-sm text-gray-500"></div>
+                                    <div id="lastUpdated" class="text-xs text-gray-400">마지막 업데이트: 방금 전</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- 메인 콘텐츠 영역 -->
+                <div class="p-6">
+                    <!-- 로딩 상태 -->
+                    <div id="loadingState" class="hidden">
+                        <div class="flex justify-center items-center h-64">
+                            <div class="text-center">
+                                <div class="loading-spinner mx-auto mb-4"></div>
+                                <p class="text-gray-600">데이터를 불러오는 중...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 로그인 필요 -->
+                    <div id="loginRequired" class="text-center py-16">
+                        <div class="max-w-md mx-auto">
+                            <div class="bg-white rounded-lg shadow-md p-8">
+                                <h2 class="text-2xl font-bold text-gray-900 mb-4">Google 계정으로 로그인</h2>
+                                <p class="text-gray-600 mb-6">Google Sheets와 Google Drive 연동을 위해 로그인이 필요합니다.</p>
+                                <button id="loginButton" class="w-full px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                                    Google 로그인
+                                </button>
+                                <div class="mt-6 border-t border-gray-200 pt-6">
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">데모 로그인 코드</label>
+                                    <div class="flex space-x-2">
+                                        <input type="text" id="demoLoginCode" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="1~5 입력">
+                                        <button id="demoLoginBtn" class="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800 transition-colors">데모 로그인</button>
+                                    </div>
+                                    <div class="mt-3 text-xs text-gray-500">
+                                        1: 영업부 · 2: 경리부 · 3: 설계부 · 4: 생산부 · 5: 마스터
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 프로젝트 관리 화면 -->
+                    <div id="projectManagement" class="hidden">
+                        <!-- 프로젝트 목록 -->
+                        <div class="bg-white rounded-lg shadow">
+                            <div class="px-6 py-4 border-b border-gray-200">
+                                <div class="flex justify-between items-center">
+                                    <h3 class="text-lg font-medium text-gray-900">프로젝트 목록</h3>
+                                    <div class="flex items-center space-x-4">
+                                        <span id="filteredCount" class="text-sm text-gray-500">총 0개</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">프로젝트 번호</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">프로젝트명</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">현재 부서</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">상태</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">작성자</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">요청일</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">작업</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="projectTableBody" class="bg-white divide-y divide-gray-200">
+                                        <!-- 프로젝트 데이터가 여기에 동적으로 추가됩니다 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- 프로젝트 처리 모달 -->
+        <div id="projectModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div class="relative top-20 mx-auto p-5 border w-full max-w-4xl bg-white rounded-lg shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 id="modalTitle" class="text-lg font-medium text-gray-900">프로젝트 처리</h3>
+                    <button id="closeModal" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- 워크플로우 상태 표시 (기존 프로젝트 처리 시에만 보임) -->
+                <div id="existingProjectWorkflow" class="mb-6 hidden">
+                    <h4 class="text-sm font-medium text-gray-700 mb-3">프로젝트 흐름</h4>
+                    <div class="flex justify-between" id="workflowSteps">
+                        <div class="workflow-step text-center px-4 py-2 rounded-lg workflow-pending" data-step="영업">
+                            <div class="text-xs font-medium">영업</div>
+                        </div>
+                        <div class="workflow-step text-center px-4 py-2 rounded-lg workflow-pending" data-step="경리">
+                            <div class="text-xs font-medium">경리</div>
+                        </div>
+                        <div class="workflow-step text-center px-4 py-2 rounded-lg workflow-pending" data-step="설계">
+                            <div class="text-xs font-medium">설계</div>
+                        </div>
+                        <div class="workflow-step text-center px-4 py-2 rounded-lg workflow-pending" data-step="production_pending">
+                            <div class="text-xs font-medium">생산 확인중</div>
+                        </div>
+                        <div class="workflow-step text-center px-4 py-2 rounded-lg workflow-pending" data-step="production_in_progress">
+                            <div class="text-xs font-medium">생산중</div>
+                        </div>
+                        <div class="workflow-step text-center px-4 py-2 rounded-lg workflow-pending" data-step="ready">
+                            <div class="text-xs font-medium">준비완료</div>
+                        </div>
+                        <div class="workflow-step text-center px-4 py-2 rounded-lg workflow-pending" data-step="delivered">
+                            <div class="text-xs font-medium">납품완료</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <form id="projectForm" class="space-y-6">
+                    <div id="defaultFormSection" class="space-y-6">
+                        <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">프로젝트 번호</label>
+                            <input type="text" id="projectNumber" readonly class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">프로젝트명</label>
+                            <input type="text" id="projectName" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="프로젝트명을 입력하세요" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">현재 부서</label>
+                            <input type="text" id="currentDepartment" readonly class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600" value="영업">
+                        </div>
+                        </div>
+                    
+                        <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">담당자</label>
+                            <input type="text" id="manager" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">상태</label>
+                            <select id="status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="진행중">진행중</option>
+                                <option value="준비 완료">준비 완료</option>
+                                <option value="보류">보류</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">우선순위</label>
+                            <select id="priority" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="높음">높음</option>
+                                <option value="중간">중간</option>
+                                <option value="낮음">낮음</option>
+                            </select>
+                        </div>
+                        </div>
+                    
+                        <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">요청일</label>
+                            <input type="date" id="requestDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">납기일</label>
+                            <input type="date" id="deliveryDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        </div>
+
+                        <!-- 파일 첨부 영역 -->
+                        <div class="space-y-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">작업의뢰서 첨부파일</label>
+                            <div id="fileDropZoneRequest" class="file-drop-zone rounded-lg p-6 text-center cursor-pointer">
+                                <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                                <p class="text-sm text-gray-600 mb-1">파일을 여기에 드롭하거나 클릭하여 선택하세요</p>
+                            <p class="text-xs text-gray-500">PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, DWG, DXF, DWF, STEP, STP, IGES, IGS, STL, OBJ, 3MF, ZIP, 7Z, RAR 지원 (용량 제한 없음)</p>
+                            </div>
+                            <input type="file" id="fileInputRequest" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg,.dxf,.dwf,.stp,.step,.igs,.iges,.stl,.obj,.3mf,.zip,.7z,.rar" class="hidden">
+                            <div id="fileListRequest" class="mt-3 space-y-2">
+                                <!-- 첨부된 파일 목록이 여기에 표시됩니다 -->
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">기타자료 첨부파일</label>
+                            <div id="fileDropZoneEtc" class="file-drop-zone rounded-lg p-6 text-center cursor-pointer">
+                                <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                                <p class="text-sm text-gray-600 mb-1">파일을 여기에 드롭하거나 클릭하여 선택하세요</p>
+                            <p class="text-xs text-gray-500">PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, DWG, DXF, DWF, STEP, STP, IGES, IGS, STL, OBJ, 3MF, ZIP, 7Z, RAR 지원 (용량 제한 없음)</p>
+                            </div>
+                            <input type="file" id="fileInputEtc" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg,.dxf,.dwf,.stp,.step,.igs,.iges,.stl,.obj,.3mf,.zip,.7z,.rar" class="hidden">
+                            <div id="fileListEtc" class="mt-3 space-y-2">
+                                <!-- 첨부된 파일 목록이 여기에 표시됩니다 -->
+                            </div>
+                        </div>
+                        </div>
+                    
+                        <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">메모</label>
+                        <textarea id="notes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+
+                        <div class="border border-gray-200 rounded-md p-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-sm font-medium text-gray-700">조기 구성품 납기 메모</label>
+                            <div class="flex items-center space-x-2 text-sm text-gray-500">
+                                <span>일자</span>
+                                <input type="date" id="earlyDeliveryDate" class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">조기 납품 목록</label>
+                            <textarea id="earlyDeliveryNotes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="조기 납품 대상 구성품을 입력하세요"></textarea>
+                        </div>
+                        </div>
+                    </div>
+
+                    <div id="accountingFormSection" class="space-y-6 hidden">
+                        <div class="space-y-4 border border-gray-200 rounded-md p-4">
+                            <h4 class="text-sm font-medium text-gray-700">영업부 첨부파일</h4>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-2">작업의뢰서</label>
+                                <div id="accountingRequestFiles" class="space-y-2 text-sm text-gray-600"></div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-2">기타자료</label>
+                                <div id="accountingEtcFiles" class="space-y-2 text-sm text-gray-600"></div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 rounded-md p-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">영업부 메모</label>
+                            <div id="accountingSalesNotes" class="text-sm text-gray-600 whitespace-pre-wrap"></div>
+                        </div>
+                        <div class="bg-gray-50 rounded-md p-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">고객사</label>
+                            <input type="text" id="accountingCustomer" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">납기요청일 *</label>
+                                <input type="date" id="accountingRequestDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">W/P 납기요청일</label>
+                                <input type="date" id="accountingWpRequestDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="block text-sm font-medium text-gray-700">모델 정보 *</label>
+                                <button type="button" id="addModelRowBtn" class="text-sm text-blue-600 hover:text-blue-700">+ 모델 추가</button>
+                            </div>
+                            <div id="accountingModelList" class="space-y-4">
+                                <div class="accounting-model-row space-y-3 border border-gray-200 rounded-md p-4">
+                                    <div class="flex justify-end">
+                                        <button type="button" class="remove-model-row text-xs text-red-600 hover:text-red-700">삭제</button>
+                                    </div>
+                                    <div class="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-500 mb-1">S/N</label>
+                                            <input type="text" data-field="sn" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-500 mb-1">모델(MODEL)</label>
+                                            <input type="text" data-field="model" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-500 mb-1">수량(SET)</label>
+                                            <input type="number" data-field="qty" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-500 mb-1">W/P 납기일</label>
+                                            <input type="date" data-field="wpDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-500 mb-1">제품납기일</label>
+                                            <input type="date" data-field="productDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-500 mb-1">모델사양(SPEC)</label>
+                                        <textarea data-field="spec" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">기타 메모</label>
+                            <textarea id="accountingMemo" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="기타 특이사항이나 메모를 입력하세요"></textarea>
+                        </div>
+
+                        <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                            <button type="button" id="accountingCancelBtn" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors">
+                                취소
+                            </button>
+                            <button type="button" id="accountingSaveBtn" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors hidden">
+                                저장
+                            </button>
+                            <button type="button" id="accountingSubmitBtn" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                                설계부로 전달
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="designFormSection" class="space-y-6 hidden">
+                        <div class="space-y-4 border border-gray-200 rounded-md p-4">
+                            <h4 class="text-sm font-medium text-gray-700">영업부 첨부파일</h4>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-2">작업의뢰서</label>
+                                <div id="designRequestFiles" class="space-y-2 text-sm text-gray-600"></div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-2">기타자료</label>
+                                <div id="designEtcFiles" class="space-y-2 text-sm text-gray-600"></div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 rounded-md p-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">영업부 메모</label>
+                            <div id="designSalesNotes" class="text-sm text-gray-600 whitespace-pre-wrap"></div>
+                        </div>
+
+                        <div class="border border-gray-200 rounded-md p-4">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">경리 사양 요약</h4>
+                            <div id="designAccountingSummary" class="space-y-2 text-sm text-gray-600"></div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">설계도면 첨부파일</label>
+                            <div id="fileDropZoneDesign" class="file-drop-zone rounded-lg p-6 text-center cursor-pointer">
+                                <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                                <p class="text-sm text-gray-600 mb-1">파일을 여기에 드롭하거나 클릭하여 선택하세요</p>
+                                <p class="text-xs text-gray-500">PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, DWG, DXF, DWF, STEP, STP, IGES, IGS, STL, OBJ, 3MF, ZIP, 7Z, RAR 지원 (용량 제한 없음)</p>
+                            </div>
+                            <input type="file" id="fileInputDesign" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg,.dxf,.dwf,.stp,.step,.igs,.iges,.stl,.obj,.3mf,.zip,.7z,.rar" class="hidden">
+                            <div id="fileListDesign" class="mt-3 space-y-2">
+                                <!-- 첨부된 파일 목록이 여기에 표시됩니다 -->
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">설계 메모</label>
+                            <textarea id="designMemo" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+                    </div>
+
+                    <div id="productionFormSection" class="space-y-6 hidden">
+                        <div class="space-y-4 border border-gray-200 rounded-md p-4">
+                            <h4 class="text-sm font-medium text-gray-700">영업부 첨부파일</h4>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-2">작업의뢰서</label>
+                                <div id="productionRequestFiles" class="space-y-2 text-sm text-gray-600"></div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-2">기타자료</label>
+                                <div id="productionEtcFiles" class="space-y-2 text-sm text-gray-600"></div>
+                            </div>
+                        </div>
+
+                        <div class="bg-gray-50 rounded-md p-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">영업부 메모</label>
+                            <div id="productionSalesNotes" class="text-sm text-gray-600 whitespace-pre-wrap"></div>
+                        </div>
+                        <div class="bg-gray-50 rounded-md p-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">조기 구성품 납기 메모</label>
+                            <div id="productionEarlyDeliveryList" class="space-y-2 text-sm text-gray-600"></div>
+                        </div>
+
+                        <div class="border border-gray-200 rounded-md p-4">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">경리 사양 요약</h4>
+                            <div id="productionAccountingSummary" class="space-y-2 text-sm text-gray-600"></div>
+                            <div class="mt-3 text-xs text-gray-500">경리 메모</div>
+                            <div id="productionAccountingMemo" class="text-sm text-gray-600 whitespace-pre-wrap"></div>
+                        </div>
+
+                        <div class="border border-gray-200 rounded-md p-4">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">설계부 첨부파일</h4>
+                            <div id="productionDesignFiles" class="space-y-2 text-sm text-gray-600"></div>
+                            <div class="mt-3 text-xs text-gray-500">설계 메모</div>
+                            <div id="productionDesignMemo" class="text-sm text-gray-600 whitespace-pre-wrap"></div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">생산 진행 파일 첨부</label>
+                            <div id="fileDropZoneProduction" class="file-drop-zone rounded-lg p-6 text-center cursor-pointer">
+                                <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                                <p class="text-sm text-gray-600 mb-1">파일을 여기에 드롭하거나 클릭하여 선택하세요</p>
+                                <p class="text-xs text-gray-500">PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, DWG, DXF, DWF, STEP, STP, IGES, IGS, STL, OBJ, 3MF, ZIP, 7Z, RAR 지원 (용량 제한 없음)</p>
+                            </div>
+                            <input type="file" id="fileInputProduction" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg,.dxf,.dwf,.stp,.step,.igs,.iges,.stl,.obj,.3mf,.zip,.7z,.rar" class="hidden">
+                            <div id="fileListProduction" class="mt-3 space-y-2">
+                                <!-- 첨부된 파일 목록이 여기에 표시됩니다 -->
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">생산 진행 메모</label>
+                            <textarea id="productionMemo" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+
+                        <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                            <button type="button" id="productionCancelBtn" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors">
+                                취소
+                            </button>
+                            <button type="button" id="productionSaveBtn" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors">
+                                저장
+                            </button>
+                            <button type="button" id="productionCompleteBtn" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                                납품완료
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="aftercareFormSection" class="space-y-6 hidden">
+                        <div class="bg-gray-50 rounded-md p-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">납품완료일</label>
+                            <input type="date" id="aftercareDeliveryDateInput" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <div class="border border-gray-200 rounded-md p-4">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">AS 메모</h4>
+                            <textarea id="aftercareMemo" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">AS 첨부파일</label>
+                            <div id="fileDropZoneAftercare" class="file-drop-zone rounded-lg p-6 text-center cursor-pointer">
+                                <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                </svg>
+                                <p class="text-sm text-gray-600 mb-1">파일을 여기에 드롭하거나 클릭하여 선택하세요</p>
+                                <p class="text-xs text-gray-500">PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, DWG, DXF, DWF, STEP, STP, IGES, IGS, STL, OBJ, 3MF, ZIP, 7Z, RAR 지원 (용량 제한 없음)</p>
+                            </div>
+                            <input type="file" id="fileInputAftercare" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg,.dxf,.dwf,.stp,.step,.igs,.iges,.stl,.obj,.3mf,.zip,.7z,.rar" class="hidden">
+                            <div id="fileListAftercare" class="mt-3 space-y-2">
+                                <!-- 첨부된 파일 목록이 여기에 표시됩니다 -->
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
+                            <button type="button" id="aftercareCancelBtn" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors">
+                                취소
+                            </button>
+                            <button type="button" id="aftercareSaveBtn" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                                메모 추가
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="viewFormSection" class="space-y-6 hidden">
+                        <div class="border border-gray-200 rounded-md p-4">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">영업부 첨부파일</h4>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 mb-2">작업의뢰서</label>
+                                <div id="viewRequestFiles" class="space-y-2 text-sm text-gray-600"></div>
+                            </div>
+                            <div class="mt-3">
+                                <label class="block text-xs font-medium text-gray-500 mb-2">기타자료</label>
+                                <div id="viewEtcFiles" class="space-y-2 text-sm text-gray-600"></div>
+                            </div>
+                            <div class="mt-3 text-xs text-gray-500">영업 메모</div>
+                            <div id="viewSalesNotes" class="text-sm text-gray-600 whitespace-pre-wrap"></div>
+                        </div>
+                        <div class="border border-gray-200 rounded-md p-4">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">조기 구성품 납기 메모</h4>
+                            <div id="viewEarlyDeliveryList" class="space-y-2 text-sm text-gray-600"></div>
+                        </div>
+
+                        <div class="border border-gray-200 rounded-md p-4">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">경리 사양 요약</h4>
+                            <div id="viewAccountingSummary" class="space-y-2 text-sm text-gray-600"></div>
+                            <div class="mt-3 text-xs text-gray-500">경리 메모</div>
+                            <div id="viewAccountingMemo" class="text-sm text-gray-600 whitespace-pre-wrap"></div>
+                        </div>
+
+                        <div class="border border-gray-200 rounded-md p-4">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">설계 첨부파일</h4>
+                            <div id="viewDesignFiles" class="space-y-2 text-sm text-gray-600"></div>
+                            <div class="mt-3 text-xs text-gray-500">설계 메모</div>
+                            <div id="viewDesignMemo" class="text-sm text-gray-600 whitespace-pre-wrap"></div>
+                        </div>
+
+                        <div class="border border-gray-200 rounded-md p-4">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">생산 진행 파일</h4>
+                            <div id="viewProductionFiles" class="space-y-2 text-sm text-gray-600"></div>
+                            <div class="mt-3 text-xs text-gray-500">생산 메모</div>
+                            <div id="viewProductionMemo" class="text-sm text-gray-600 whitespace-pre-wrap"></div>
+                        </div>
+
+                        <div class="border border-gray-200 rounded-md p-4">
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">AS 메모</h4>
+                            <div class="text-xs text-gray-500">납품완료일</div>
+                            <div id="viewDeliveryDate" class="text-sm text-gray-600"></div>
+                            <div class="mt-3 text-xs text-gray-500">AS 메모</div>
+                            <div id="viewAftercareMemo" class="text-sm text-gray-600 whitespace-pre-wrap"></div>
+                            <div class="mt-3 text-xs text-gray-500">AS 첨부파일</div>
+                            <div id="viewAftercareFiles" class="space-y-2 text-sm text-gray-600"></div>
+                        </div>
+                    </div>
+
+                    <!-- 다음 단계 버튼 -->
+                    <div id="nextStepSection" class="pt-4 border-t border-gray-200">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">다음 단계</label>
+                                <select id="nextDepartment" class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="">선택하세요</option>
+                                </select>
+                            </div>
+                            <div class="flex space-x-3">
+                                <button type="button" id="cancelBtn" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors">
+                                    취소
+                                </button>
+                                <button type="button" id="saveBtn" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors">
+                                    저장
+                                </button>
+                                <button type="button" id="submitBtn" class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+                                    다음 단계로 전달
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="earlyDeliveryModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div class="relative top-24 mx-auto p-6 border w-full max-w-lg bg-white rounded-lg shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">조기 구성품 납기 메모</h3>
+                    <button id="closeEarlyDeliveryModal" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">일자</label>
+                        <input type="date" id="earlyDeliveryModalDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">조기 납품 목록</label>
+                        <textarea id="earlyDeliveryModalNotes" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                    </div>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="button" id="cancelEarlyDeliveryModal" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors">취소</button>
+                    <button type="button" id="saveEarlyDeliveryModal" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">저장</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 수정 부서 선택 모달 -->
+        <div id="editDepartmentModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div class="relative top-24 mx-auto p-6 border w-full max-w-md bg-white rounded-lg shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">수정 부서 선택</h3>
+                    <button id="closeEditDeptModal" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="space-y-4">
+                    <label class="block text-sm font-medium text-gray-700">부서</label>
+                    <select id="editDepartmentSelect" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="영업">영업</option>
+                        <option value="경리">경리</option>
+                        <option value="설계">설계</option>
+                        <option value="생산">생산</option>
+                    </select>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="button" id="cancelEditDeptBtn" class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors">취소</button>
+                    <button type="button" id="confirmEditDeptBtn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">확인</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 삭제 히스토리 모달 -->
+        <div id="deleteHistoryModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div class="relative top-20 mx-auto p-6 border w-full max-w-3xl bg-white rounded-lg shadow-lg">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">삭제 히스토리</h3>
+                    <button id="closeDeleteHistory" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div id="deleteHistoryList" class="space-y-2 text-sm text-gray-600"></div>
+                <div class="mt-4 text-xs text-gray-400">삭제 히스토리에서 삭제하면 복구할 수 없습니다.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Google API 설정 (데모 모드)
+        const GOOGLE_CONFIG = {
+            DEMO_MODE: true,
+            API_KEY: 'demo-key',
+            CLIENT_ID: 'demo-client-id',
+            SHEETS: {
+                PROJECT_SHEET_ID: 'demo-sheet-id',
+                MODEL_SHEET_ID: 'demo-model-sheet-id'
+            }
+        };
+        const APPS_SCRIPT_CONFIG = {
+            ENABLED: true,
+            WEB_APP_URL: 'PASTE_APPS_SCRIPT_WEB_APP_URL_HERE'
+        };
+
+        // 애플리케이션 상태
+        let appState = {
+            isLoggedIn: false,
+            projects: [],
+            filteredProjects: [],
+            currentEditId: null,
+            user: null,
+            currentFilter: 'all',
+            attachedFilesRequest: [],
+            attachedFilesEtc: [],
+            attachedFilesDesign: [],
+            attachedFilesProduction: [],
+            attachedFilesAftercare: [],
+            existingFiles: {
+                request: [],
+                etc: [],
+                design: [],
+                production: [],
+                aftercare: []
+            },
+            editMode: null,
+            pendingEditId: null,
+            submitAction: null,
+            deletedProjects: []
+        };
+
+        // 워크플로우 순서
+        const WORKFLOW_STEPS = ['영업', '경리', '설계', '생산'];
+        const ALLOWED_EXTENSIONS = [
+            'pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png',
+            'dwg', 'dxf', 'dwf',
+            'stp', 'step', 'igs', 'iges', 'stl', 'obj', '3mf',
+            'zip', '7z', 'rar'
+        ];
+        const TEST_MODE = new URLSearchParams(window.location.search).has('test');
+        const EMPLOYEE_CODES = {
+            '박상현': 'H',
+            '전범준': 'J',
+            '이태경': 'L',
+            '조군희': 'C',
+            '박종삼': 'P'
+        };
+
+        const RESET_STORAGE_ONCE = true;
+        const RESET_STORAGE_KEY = 'manufacturing_reset_v2';
+
+        // 로컬 스토리지 키
+        const STORAGE_KEYS = {
+            PROJECTS: 'manufacturing_projects',
+            USER: 'manufacturing_user',
+            LOGIN_STATE: 'manufacturing_login_state',
+            DELETED: 'manufacturing_deleted_projects'
+        };
+
+        // 초기화 함수
+        function init() {
+            if (RESET_STORAGE_ONCE && !localStorage.getItem(RESET_STORAGE_KEY)) {
+                localStorage.removeItem(STORAGE_KEYS.PROJECTS);
+                localStorage.removeItem(STORAGE_KEYS.DELETED);
+                localStorage.setItem(RESET_STORAGE_KEY, 'true');
+            }
+            // 현재 날짜 표시
+            document.getElementById('currentDate').textContent = new Date().toLocaleDateString('ko-KR');
+            
+            // 자동 로그인 (데모용)
+            const savedLoginState = localStorage.getItem(STORAGE_KEYS.LOGIN_STATE);
+            if (savedLoginState === 'true') {
+                const savedUser = localStorage.getItem(STORAGE_KEYS.USER);
+                if (savedUser) {
+                    appState.user = JSON.parse(savedUser);
+                }
+                autoLogin();
+            }
+
+            // 이벤트 리스너 등록
+            setupEventListeners();
+            
+            // 프로젝트 데이터 로드
+            loadProjects();
+            loadDeletedProjects();
+        }
+
+        function ensureTestUser(defaultDepartment) {
+            if (!TEST_MODE) return;
+            if (!appState.user) {
+                appState.user = { name: 'Test User', email: 'test@example.com' };
+            }
+            if (!appState.user.department) {
+                appState.user.department = defaultDepartment || '영업';
+            }
+        }
+
+        function getExistingProjectNumbers() {
+            const existing = new Set();
+            appState.projects.forEach(project => {
+                if (project.projectNumber) existing.add(project.projectNumber);
+            });
+            appState.deletedProjects.forEach(project => {
+                if (project.projectNumber) existing.add(project.projectNumber);
+            });
+            return existing;
+        }
+
+        function getUniqueProjectNumber(baseNumber) {
+            const existing = getExistingProjectNumbers();
+            let counter = 1;
+            while (counter < 100) {
+                const suffix = String(counter).padStart(2, '0');
+                const candidate = `${baseNumber}${suffix}`;
+                if (!existing.has(candidate)) return candidate;
+                counter += 1;
+            }
+            return `${baseNumber}${String(Date.now()).slice(-2)}`;
+        }
+
+        function updateProjectNumber() {
+            if (appState.currentEditId) return;
+            const requestDateValue = document.getElementById('requestDate').value;
+            const managerName = document.getElementById('manager').value.trim();
+            const dateValue = requestDateValue || new Date().toISOString().split('T')[0];
+            const date = new Date(dateValue);
+            if (Number.isNaN(date.getTime())) return;
+            const yy = String(date.getFullYear()).slice(-2);
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            const dd = String(date.getDate()).padStart(2, '0');
+            const code = EMPLOYEE_CODES[managerName] || 'X';
+            const baseNumber = `PJ-${yy}${mm}${dd}-${code}`;
+            document.getElementById('projectNumber').value = getUniqueProjectNumber(baseNumber);
+        }
+
+        // 자동 로그인 (데모용)
+        function autoLogin() {
+            appState.isLoggedIn = true;
+            appState.user = {
+                name: '데모 사용자',
+                email: 'demo@example.com'
+            };
+            updateUI();
+        }
+
+        // 이벤트 리스너 설정
+        function setupEventListeners() {
+            document.getElementById('googleSignIn').addEventListener('click', handleGoogleSignIn);
+            document.getElementById('googleSignOut').addEventListener('click', handleGoogleSignOut);
+            document.getElementById('loginButton').addEventListener('click', handleGoogleSignIn);
+            const demoLoginBtn = document.getElementById('demoLoginBtn');
+            if (demoLoginBtn) {
+                demoLoginBtn.addEventListener('click', handleDemoLogin);
+            }
+            document.getElementById('addProjectBtn').addEventListener('click', openNewProjectModal);
+            document.getElementById('closeModal').addEventListener('click', closeProjectModal);
+            const cancelBtn = document.getElementById('cancelBtn');
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', closeProjectModal);
+            }
+            const saveBtn = document.getElementById('saveBtn');
+            if (saveBtn) {
+                saveBtn.addEventListener('click', () => {
+                    appState.submitAction = 'save';
+                    document.getElementById('projectForm').requestSubmit();
+                });
+            }
+            const accountingCancelBtn = document.getElementById('accountingCancelBtn');
+            if (accountingCancelBtn) {
+                accountingCancelBtn.addEventListener('click', closeProjectModal);
+            }
+            const accountingSaveBtn = document.getElementById('accountingSaveBtn');
+            if (accountingSaveBtn) {
+                accountingSaveBtn.addEventListener('click', () => {
+                    appState.submitAction = 'save';
+                    document.getElementById('projectForm').requestSubmit();
+                });
+            }
+            const accountingSubmitBtn = document.getElementById('accountingSubmitBtn');
+            if (accountingSubmitBtn) {
+                accountingSubmitBtn.addEventListener('click', () => {
+                    submitProjectForm('forward', { noValidate: true });
+                });
+            }
+            document.getElementById('projectForm').addEventListener('submit', handleProjectSubmit);
+            document.getElementById('searchInput').addEventListener('input', handleSearch);
+            document.getElementById('manager').addEventListener('input', updateProjectNumber);
+            document.getElementById('requestDate').addEventListener('change', updateProjectNumber);
+            document.getElementById('addModelRowBtn').addEventListener('click', () => addModelRow());
+            document.getElementById('accountingRequestDate').addEventListener('change', syncAccountingDates);
+            document.getElementById('accountingWpRequestDate').addEventListener('change', syncAccountingDates);
+            document.getElementById('accountingRequestDate').addEventListener('input', syncAccountingDates);
+            document.getElementById('accountingWpRequestDate').addEventListener('input', syncAccountingDates);
+            document.getElementById('closeEditDeptModal').addEventListener('click', closeEditDepartmentModal);
+            document.getElementById('cancelEditDeptBtn').addEventListener('click', closeEditDepartmentModal);
+            document.getElementById('confirmEditDeptBtn').addEventListener('click', confirmEditDepartment);
+            const productionCancelBtn = document.getElementById('productionCancelBtn');
+            if (productionCancelBtn) {
+                productionCancelBtn.addEventListener('click', closeProjectModal);
+            }
+            const productionSaveBtn = document.getElementById('productionSaveBtn');
+            if (productionSaveBtn) {
+                productionSaveBtn.addEventListener('click', () => {
+                    appState.submitAction = 'save';
+                    document.getElementById('projectForm').requestSubmit();
+                });
+            }
+            const productionCompleteBtn = document.getElementById('productionCompleteBtn');
+            if (productionCompleteBtn) {
+                productionCompleteBtn.addEventListener('click', () => {
+                    const action = productionCompleteBtn.dataset.action || 'complete';
+                    appState.submitAction = action;
+                    document.getElementById('projectForm').requestSubmit();
+                });
+            }
+            const submitBtn = document.getElementById('submitBtn');
+            if (submitBtn) {
+                submitBtn.addEventListener('click', () => {
+                    submitProjectForm(submitBtn.dataset.action || null, { noValidate: true });
+                });
+            }
+            const aftercareCancelBtn = document.getElementById('aftercareCancelBtn');
+            if (aftercareCancelBtn) {
+                aftercareCancelBtn.addEventListener('click', closeProjectModal);
+            }
+            const aftercareSaveBtn = document.getElementById('aftercareSaveBtn');
+            if (aftercareSaveBtn) {
+                aftercareSaveBtn.addEventListener('click', () => {
+                    appState.submitAction = 'aftercare';
+                    document.getElementById('projectForm').requestSubmit();
+                });
+            }
+            const openDeleteHistory = document.getElementById('openDeleteHistory');
+            if (openDeleteHistory) {
+                openDeleteHistory.addEventListener('click', openDeleteHistoryModal);
+            }
+            const closeDeleteHistory = document.getElementById('closeDeleteHistory');
+            if (closeDeleteHistory) {
+                closeDeleteHistory.addEventListener('click', closeDeleteHistoryModal);
+            }
+            const closeEarlyDeliveryModal = document.getElementById('closeEarlyDeliveryModal');
+            if (closeEarlyDeliveryModal) {
+                closeEarlyDeliveryModal.addEventListener('click', closeEarlyDeliveryModalHandler);
+            }
+            const cancelEarlyDeliveryModal = document.getElementById('cancelEarlyDeliveryModal');
+            if (cancelEarlyDeliveryModal) {
+                cancelEarlyDeliveryModal.addEventListener('click', closeEarlyDeliveryModalHandler);
+            }
+            const saveEarlyDeliveryModal = document.getElementById('saveEarlyDeliveryModal');
+            if (saveEarlyDeliveryModal) {
+                saveEarlyDeliveryModal.addEventListener('click', saveEarlyDeliveryMemo);
+            }
+            
+            // 파일 관련 이벤트
+            bindFileZone('fileDropZoneRequest', 'fileInputRequest', 'request');
+            bindFileZone('fileDropZoneEtc', 'fileInputEtc', 'etc');
+            bindFileZone('fileDropZoneDesign', 'fileInputDesign', 'design');
+            bindFileZone('fileDropZoneProduction', 'fileInputProduction', 'production');
+            bindFileZone('fileDropZoneAftercare', 'fileInputAftercare', 'aftercare');
+        }
+
+        function setFormMode(mode) {
+            const defaultSection = document.getElementById('defaultFormSection');
+            const accountingSection = document.getElementById('accountingFormSection');
+            const designSection = document.getElementById('designFormSection');
+            const productionSection = document.getElementById('productionFormSection');
+            const aftercareSection = document.getElementById('aftercareFormSection');
+            const viewSection = document.getElementById('viewFormSection');
+            const nextStepSection = document.getElementById('nextStepSection');
+
+            if (mode === 'accounting') {
+                defaultSection.classList.add('hidden');
+                accountingSection.classList.remove('hidden');
+                designSection.classList.add('hidden');
+                productionSection.classList.add('hidden');
+                aftercareSection.classList.add('hidden');
+                viewSection.classList.add('hidden');
+                if (nextStepSection) nextStepSection.classList.add('hidden');
+            } else if (mode === 'design') {
+                defaultSection.classList.add('hidden');
+                accountingSection.classList.add('hidden');
+                designSection.classList.remove('hidden');
+                productionSection.classList.add('hidden');
+                aftercareSection.classList.add('hidden');
+                viewSection.classList.add('hidden');
+                if (nextStepSection) nextStepSection.classList.remove('hidden');
+            } else if (mode === 'production') {
+                defaultSection.classList.add('hidden');
+                accountingSection.classList.add('hidden');
+                designSection.classList.add('hidden');
+                productionSection.classList.remove('hidden');
+                aftercareSection.classList.add('hidden');
+                viewSection.classList.add('hidden');
+                if (nextStepSection) nextStepSection.classList.add('hidden');
+            } else if (mode === 'aftercare') {
+                defaultSection.classList.add('hidden');
+                accountingSection.classList.add('hidden');
+                designSection.classList.add('hidden');
+                productionSection.classList.add('hidden');
+                aftercareSection.classList.remove('hidden');
+                viewSection.classList.add('hidden');
+                if (nextStepSection) nextStepSection.classList.add('hidden');
+            } else if (mode === 'view') {
+                defaultSection.classList.add('hidden');
+                accountingSection.classList.add('hidden');
+                designSection.classList.add('hidden');
+                productionSection.classList.add('hidden');
+                aftercareSection.classList.add('hidden');
+                viewSection.classList.remove('hidden');
+                if (nextStepSection) nextStepSection.classList.add('hidden');
+            } else {
+                defaultSection.classList.remove('hidden');
+                accountingSection.classList.add('hidden');
+                designSection.classList.add('hidden');
+                productionSection.classList.add('hidden');
+                aftercareSection.classList.add('hidden');
+                viewSection.classList.add('hidden');
+                if (nextStepSection) nextStepSection.classList.remove('hidden');
+            }
+        }
+
+        function submitProjectForm(action, options = {}) {
+            const form = document.getElementById('projectForm');
+            if (!form) return;
+            const previousNoValidate = form.noValidate;
+            if (options.noValidate) {
+                form.noValidate = true;
+            }
+            appState.submitAction = action;
+            form.requestSubmit();
+            form.noValidate = previousNoValidate;
+        }
+
+        function resetAccountingForm() {
+            document.getElementById('accountingCustomer').value = '';
+            document.getElementById('accountingRequestDate').value = '';
+            document.getElementById('accountingWpRequestDate').value = '';
+            document.getElementById('accountingMemo').value = '';
+            document.getElementById('accountingRequestFiles').innerHTML = '';
+            document.getElementById('accountingEtcFiles').innerHTML = '';
+            document.getElementById('accountingSalesNotes').textContent = '';
+            const modelList = document.getElementById('accountingModelList');
+            modelList.innerHTML = '';
+            addModelRow();
+        }
+
+        function resetDesignForm() {
+            document.getElementById('designRequestFiles').innerHTML = '';
+            document.getElementById('designEtcFiles').innerHTML = '';
+            document.getElementById('designSalesNotes').textContent = '';
+            document.getElementById('designAccountingSummary').innerHTML = '';
+            document.getElementById('designMemo').value = '';
+            appState.attachedFilesDesign = [];
+            renderFileList('design');
+        }
+
+        function resetProductionForm() {
+            document.getElementById('productionRequestFiles').innerHTML = '';
+            document.getElementById('productionEtcFiles').innerHTML = '';
+            document.getElementById('productionSalesNotes').textContent = '';
+            document.getElementById('productionAccountingSummary').innerHTML = '';
+            document.getElementById('productionAccountingMemo').textContent = '';
+            document.getElementById('productionDesignFiles').innerHTML = '';
+            document.getElementById('productionDesignMemo').textContent = '';
+            document.getElementById('productionMemo').value = '';
+            appState.attachedFilesProduction = [];
+            renderFileList('production');
+        }
+
+        function resetAftercareForm() {
+            document.getElementById('aftercareDeliveryDateInput').value = '';
+            document.getElementById('aftercareMemo').value = '';
+            appState.attachedFilesAftercare = [];
+            renderFileList('aftercare');
+        }
+
+        function renderFileSummary(container, files, options = {}) {
+            if (!container) return;
+            const allowRemove = !!(options && options.allowRemove && options.type);
+            const displayFiles = allowRemove ? getExistingFilesForEdit(options.type, files || []) : files;
+            if (!displayFiles || displayFiles.length === 0) {
+                container.innerHTML = '<div class="text-xs text-gray-400">첨부된 파일이 없습니다</div>';
+                return;
+            }
+            container.innerHTML = displayFiles.map((file, index) => `
+                <div class="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-md">
+                    ${file.dataUrl ? `<a class="text-blue-600 hover:text-blue-700 underline" href="${file.dataUrl}" target="_blank" rel="noopener">${file.name}</a>` : `<span>${file.name}</span>`}
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-gray-400">${formatFileSize(file.size || 0)}</span>
+                        ${allowRemove ? `<button type="button" onclick="removeExistingFile(${index}, '${options.type}', '${container.id}')" class="text-red-600 hover:text-red-900">삭제</button>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function syncAccountingDates() {
+            const requestDate = document.getElementById('accountingRequestDate').value;
+            const wpRequestDate = document.getElementById('accountingWpRequestDate').value;
+            const modelRows = Array.from(document.querySelectorAll('#accountingModelList .accounting-model-row'));
+            modelRows.forEach(row => {
+                applyAccountingDatesToRow(row, requestDate, wpRequestDate);
+            });
+        }
+
+        function applyAccountingDatesToRow(row, requestDate, wpRequestDate) {
+            const wpDateInput = row.querySelector('[data-field="wpDate"]');
+            const productDateInput = row.querySelector('[data-field="productDate"]');
+            if (wpDateInput && (wpDateInput.value === '' || wpDateInput.dataset.auto === 'true')) {
+                wpDateInput.value = wpRequestDate;
+                wpDateInput.dataset.auto = 'true';
+            }
+            if (productDateInput && (productDateInput.value === '' || productDateInput.dataset.auto === 'true')) {
+                productDateInput.value = requestDate;
+                productDateInput.dataset.auto = 'true';
+            }
+        }
+
+        function addModelRow(data) {
+            const modelList = document.getElementById('accountingModelList');
+            const wrapper = document.createElement('div');
+            wrapper.className = 'accounting-model-row space-y-3 border border-gray-200 rounded-md p-4';
+            wrapper.innerHTML = `
+                <div class="flex justify-end">
+                    <button type="button" class="remove-model-row text-xs text-red-600 hover:text-red-700">삭제</button>
+                </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">S/N</label>
+                        <input type="text" data-field="sn" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">모델(MODEL)</label>
+                        <input type="text" data-field="model" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">수량(SET)</label>
+                        <input type="number" data-field="qty" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">W/P 납기일</label>
+                        <input type="date" data-field="wpDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">제품납기일</label>
+                        <input type="date" data-field="productDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">모델사양(SPEC)</label>
+                    <textarea data-field="spec" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+            `;
+            modelList.appendChild(wrapper);
+
+            if (data) {
+                wrapper.querySelector('[data-field="sn"]').value = data.serialNumber || '';
+                wrapper.querySelector('[data-field="model"]').value = data.modelName || '';
+                wrapper.querySelector('[data-field="qty"]').value = data.quantity || '';
+                wrapper.querySelector('[data-field="wpDate"]').value = data.wpDueDate || '';
+                wrapper.querySelector('[data-field="productDate"]').value = data.productDueDate || '';
+                wrapper.querySelector('[data-field="spec"]').value = data.spec || '';
+                wrapper.querySelector('[data-field="wpDate"]').dataset.auto = 'false';
+                wrapper.querySelector('[data-field="productDate"]').dataset.auto = 'false';
+            } else {
+                const requestDate = document.getElementById('accountingRequestDate').value;
+                const wpRequestDate = document.getElementById('accountingWpRequestDate').value;
+                applyAccountingDatesToRow(wrapper, requestDate, wpRequestDate);
+            }
+
+            const wpDateInput = wrapper.querySelector('[data-field="wpDate"]');
+            const productDateInput = wrapper.querySelector('[data-field="productDate"]');
+            wpDateInput.addEventListener('input', () => {
+                wpDateInput.dataset.auto = 'false';
+            });
+            productDateInput.addEventListener('input', () => {
+                productDateInput.dataset.auto = 'false';
+            });
+            const removeBtn = wrapper.querySelector('.remove-model-row');
+            if (removeBtn) {
+                removeBtn.addEventListener('click', () => {
+                    const rows = document.querySelectorAll('#accountingModelList .accounting-model-row');
+                    if (rows.length > 1) {
+                        wrapper.remove();
+                    }
+                });
+            }
+            if (!data) {
+                syncAccountingDates();
+            }
+        }
+
+        function populateAccountingForm(project) {
+            resetAccountingForm();
+            if (!project) return;
+            renderAccountingFiles(project);
+            document.getElementById('accountingSalesNotes').textContent = project.notes || '메모가 없습니다.';
+            if (!project.accounting) return;
+            const data = project.accounting;
+            document.getElementById('accountingCustomer').value = data.customerName || '';
+            document.getElementById('accountingRequestDate').value = data.requestDueDate || '';
+            document.getElementById('accountingWpRequestDate').value = data.wpRequestDueDate || '';
+            document.getElementById('accountingMemo').value = data.memo || '';
+
+            const modelList = document.getElementById('accountingModelList');
+            modelList.innerHTML = '';
+            if (data.models && data.models.length > 0) {
+                data.models.forEach(model => addModelRow(model));
+            } else {
+                addModelRow();
+            }
+        }
+
+        function renderAccountingFiles(project) {
+            const requestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
+            const etcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
+            const requestContainer = document.getElementById('accountingRequestFiles');
+            const etcContainer = document.getElementById('accountingEtcFiles');
+            renderFileSummary(requestContainer, requestFiles, { allowRemove: true, type: 'request' });
+            renderFileSummary(etcContainer, etcFiles, { allowRemove: true, type: 'etc' });
+        }
+
+        function renderDesignFiles(project) {
+            const requestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
+            const etcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
+            renderFileSummary(document.getElementById('designRequestFiles'), requestFiles, { allowRemove: true, type: 'request' });
+            renderFileSummary(document.getElementById('designEtcFiles'), etcFiles, { allowRemove: true, type: 'etc' });
+            document.getElementById('designSalesNotes').textContent = project.notes || '메모가 없습니다.';
+        }
+
+        function renderAccountingSummary(project) {
+            const container = document.getElementById('designAccountingSummary');
+            if (!project || !project.accounting || !project.accounting.models || project.accounting.models.length === 0) {
+                container.innerHTML = '<div class="text-xs text-gray-400">경리 사양 정보가 없습니다</div>';
+                return;
+            }
+            container.innerHTML = project.accounting.models.map(model => {
+                const parts = [
+                    model.serialNumber && `S/N ${model.serialNumber}`,
+                    model.modelName && `모델 ${model.modelName}`,
+                    model.quantity && `수량 ${model.quantity}`,
+                    model.wpDueDate && `W/P ${model.wpDueDate}`,
+                    model.productDueDate && `제품 ${model.productDueDate}`,
+                    model.spec && `SPEC ${model.spec}`
+                ].filter(Boolean);
+                return `<div class="bg-gray-50 px-3 py-2 rounded-md">${parts.join(' | ')}</div>`;
+            }).join('');
+        }
+
+        function renderProductionContext(project) {
+            renderFileSummary(document.getElementById('productionRequestFiles'), getExistingFilesForEdit('request', project.requestFiles || []), { allowRemove: true, type: 'request' });
+            renderFileSummary(document.getElementById('productionEtcFiles'), getExistingFilesForEdit('etc', project.etcFiles || []), { allowRemove: true, type: 'etc' });
+            document.getElementById('productionSalesNotes').textContent = project.notes || '메모가 없습니다.';
+            renderEarlyDeliveryList(document.getElementById('productionEarlyDeliveryList'), project);
+            renderAccountingSummaryForProduction(project);
+            renderDesignSummaryForProduction(project);
+        }
+
+        function renderAccountingSummaryForProduction(project) {
+            const container = document.getElementById('productionAccountingSummary');
+            if (!project || !project.accounting || !project.accounting.models || project.accounting.models.length === 0) {
+                container.innerHTML = '<div class="text-xs text-gray-400">경리 사양 정보가 없습니다</div>';
+            } else {
+                container.innerHTML = project.accounting.models.map(model => {
+                    const parts = [
+                        model.serialNumber && `S/N ${model.serialNumber}`,
+                        model.modelName && `모델 ${model.modelName}`,
+                        model.quantity && `수량 ${model.quantity}`,
+                        model.wpDueDate && `W/P ${model.wpDueDate}`,
+                        model.productDueDate && `제품 ${model.productDueDate}`,
+                        model.spec && `SPEC ${model.spec}`
+                    ].filter(Boolean);
+                    return `<div class="bg-gray-50 px-3 py-2 rounded-md">${parts.join(' | ')}</div>`;
+                }).join('');
+            }
+            document.getElementById('productionAccountingMemo').textContent =
+                (project.accounting && project.accounting.memo) || '메모가 없습니다.';
+        }
+
+        function renderDesignSummaryForProduction(project) {
+            const design = project.design || {};
+            renderFileSummary(document.getElementById('productionDesignFiles'), getExistingFilesForEdit('design', design.files || []), { allowRemove: true, type: 'design' });
+            document.getElementById('productionDesignMemo').textContent = design.memo || '메모가 없습니다.';
+        }
+
+        function renderViewContext(project) {
+            renderFileSummary(document.getElementById('viewRequestFiles'), project.requestFiles || []);
+            renderFileSummary(document.getElementById('viewEtcFiles'), project.etcFiles || []);
+            document.getElementById('viewSalesNotes').textContent = project.notes || '메모가 없습니다.';
+            renderEarlyDeliveryList(document.getElementById('viewEarlyDeliveryList'), project, { allowDelete: true });
+            renderAccountingSummaryForView(project);
+            renderDesignSummaryForView(project);
+            renderProductionSummaryForView(project);
+            renderAftercareSummaryForView(project);
+        }
+
+        function normalizeEarlyDeliveryMemos(project) {
+            const memos = Array.isArray(project.earlyDeliveryMemos) ? project.earlyDeliveryMemos : [];
+            if (memos.length === 0 && (project.earlyDeliveryDate || project.earlyDeliveryNotes)) {
+                return [{
+                    id: Date.now().toString(),
+                    date: project.earlyDeliveryDate || '',
+                    notes: project.earlyDeliveryNotes || ''
+                }].filter(item => item.date || item.notes);
+            }
+            return memos;
+        }
+
+        function renderEarlyDeliveryList(container, project, options = {}) {
+            if (!container) return;
+            const memos = normalizeEarlyDeliveryMemos(project);
+            if (memos.length === 0) {
+                container.innerHTML = '<div class="text-xs text-gray-400">메모가 없습니다</div>';
+                return;
+            }
+            container.innerHTML = memos.map((memo, index) => `
+                <div class="bg-white border border-gray-200 rounded-md p-3">
+                    <div class="flex items-center justify-between">
+                        <div class="text-xs text-gray-500">일자</div>
+                        ${options.allowDelete ? `<button type="button" class="text-xs text-red-600 hover:text-red-700" onclick="deleteEarlyDeliveryMemo('${project.id}', ${index})">삭제</button>` : ''}
+                    </div>
+                    <div class="text-sm text-gray-700 mt-1">${memo.date || '미기록'}</div>
+                    <div class="mt-2 text-xs text-gray-500">조기 납품 목록</div>
+                    <div class="text-sm text-gray-700 whitespace-pre-wrap">${memo.notes || '메모가 없습니다.'}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderAccountingSummaryForView(project) {
+            const container = document.getElementById('viewAccountingSummary');
+            if (!project || !project.accounting || !project.accounting.models || project.accounting.models.length === 0) {
+                container.innerHTML = '<div class="text-xs text-gray-400">경리 사양 정보가 없습니다</div>';
+            } else {
+                container.innerHTML = project.accounting.models.map(model => {
+                    const parts = [
+                        model.serialNumber && `S/N ${model.serialNumber}`,
+                        model.modelName && `모델 ${model.modelName}`,
+                        model.quantity && `수량 ${model.quantity}`,
+                        model.wpDueDate && `W/P ${model.wpDueDate}`,
+                        model.productDueDate && `제품 ${model.productDueDate}`,
+                        model.spec && `SPEC ${model.spec}`
+                    ].filter(Boolean);
+                    return `<div class="bg-gray-50 px-3 py-2 rounded-md">${parts.join(' | ')}</div>`;
+                }).join('');
+            }
+            document.getElementById('viewAccountingMemo').textContent =
+                (project.accounting && project.accounting.memo) || '메모가 없습니다.';
+        }
+
+        function renderDesignSummaryForView(project) {
+            const design = project.design || {};
+            renderFileSummary(document.getElementById('viewDesignFiles'), design.files || []);
+            document.getElementById('viewDesignMemo').textContent = design.memo || '메모가 없습니다.';
+        }
+
+        function renderProductionSummaryForView(project) {
+            const production = project.production || {};
+            renderFileSummary(document.getElementById('viewProductionFiles'), production.files || []);
+            document.getElementById('viewProductionMemo').textContent = production.memo || '메모가 없습니다.';
+        }
+
+        function renderAftercareSummaryForView(project) {
+            const aftercare = project.aftercare || {};
+            document.getElementById('viewDeliveryDate').textContent = project.deliveryCompletedAt || '미기록';
+            document.getElementById('viewAftercareMemo').textContent = aftercare.memo || '메모가 없습니다.';
+            renderFileSummary(document.getElementById('viewAftercareFiles'), aftercare.files || []);
+        }
+
+        // 파일 관련 함수
+        function bindFileZone(dropZoneId, inputId, type) {
+            const fileDropZone = document.getElementById(dropZoneId);
+            const fileInput = document.getElementById(inputId);
+            if (!fileDropZone || !fileInput) return;
+            fileDropZone.addEventListener('click', () => fileInput.click());
+            fileInput.addEventListener('change', (e) => handleFileSelect(e, type));
+            fileDropZone.addEventListener('dragover', (e) => handleDragOver(e, fileDropZone));
+            fileDropZone.addEventListener('dragleave', (e) => handleDragLeave(e, fileDropZone));
+            fileDropZone.addEventListener('drop', (e) => handleFileDrop(e, type, fileDropZone));
+        }
+
+        function handleDragOver(e, dropZone) {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        }
+
+        function handleDragLeave(e, dropZone) {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+        }
+
+        function handleFileDrop(e, type, dropZone) {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = Array.from(e.dataTransfer.files);
+            processFiles(files, type);
+        }
+
+        function handleFileSelect(e, type) {
+            const files = Array.from(e.target.files);
+            processFiles(files, type);
+            e.target.value = '';
+        }
+
+        function processFiles(files, type) {
+            const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+                               'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                               'image/jpeg', 'image/jpg', 'image/png'];
+            const targetFiles = type === 'request' ? appState.attachedFilesRequest :
+                type === 'etc' ? appState.attachedFilesEtc :
+                type === 'design' ? appState.attachedFilesDesign :
+                type === 'production' ? appState.attachedFilesProduction :
+                appState.attachedFilesAftercare;
+            
+            files.forEach(file => {
+                const extension = file.name.split('.').pop().toLowerCase();
+                const isValid = validTypes.includes(file.type) || ALLOWED_EXTENSIONS.includes(extension);
+                if (!isValid) {
+                    alert(`${file.name} 파일 형식은 지원하지 않습니다. PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, DWG, DXF, DWF, STEP, STP, IGES, IGS, STL, OBJ, 3MF, ZIP, 7Z, RAR 파일만 업로드 가능합니다.`);
+                    return;
+                }
+                
+                targetFiles.push(file);
+            });
+            
+            renderFileList(type);
+        }
+
+        function renderFileList(type) {
+            const fileList = document.getElementById(
+                type === 'request' ? 'fileListRequest' :
+                type === 'etc' ? 'fileListEtc' :
+                type === 'design' ? 'fileListDesign' :
+                type === 'production' ? 'fileListProduction' :
+                'fileListAftercare'
+            );
+            const files = type === 'request' ? appState.attachedFilesRequest :
+                type === 'etc' ? appState.attachedFilesEtc :
+                type === 'design' ? appState.attachedFilesDesign :
+                type === 'production' ? appState.attachedFilesProduction :
+                appState.attachedFilesAftercare;
+            const existingFiles = getExistingFilesForEdit(type, []);
+            
+            if (files.length === 0 && existingFiles.length === 0) {
+                if (fileList) {
+                    fileList.innerHTML = '<p class="text-sm text-gray-500 text-center">첨부된 파일이 없습니다</p>';
+                }
+                return;
+            }
+            
+            const existingHtml = existingFiles.map((file, index) => `
+                <div class="file-item rounded-lg p-3 flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 bg-gray-200 rounded flex items-center justify-center mr-3">
+                            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium text-gray-900">${file.name}</div>
+                            <div class="text-xs text-gray-500">${formatFileSize(file.size || 0)}</div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="removeExistingFile(${index}, '${type}', '${fileList ? fileList.id : ''}')" class="text-red-600 hover:text-red-900">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            `).join('');
+
+            const attachedHtml = files.map((file, index) => `
+                <div class="file-item rounded-lg p-3 flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 bg-gray-200 rounded flex items-center justify-center mr-3">
+                            <svg class="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium text-gray-900">${file.name}</div>
+                            <div class="text-xs text-gray-500">${formatFileSize(file.size || 0)}</div>
+                        </div>
+                    </div>
+                    <button type="button" onclick="removeFile(${index}, '${type}')" class="text-red-600 hover:text-red-900">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            `).join('');
+
+            fileList.innerHTML = `${existingHtml}${attachedHtml}`;
+        }
+
+        function removeFile(index, type) {
+            const files = type === 'request' ? appState.attachedFilesRequest :
+                type === 'etc' ? appState.attachedFilesEtc :
+                type === 'design' ? appState.attachedFilesDesign :
+                type === 'production' ? appState.attachedFilesProduction :
+                appState.attachedFilesAftercare;
+            files.splice(index, 1);
+            renderFileList(type);
+        }
+
+        function removeExistingFile(index, type, containerId) {
+            const files = getExistingFilesForEdit(type, []);
+            files.splice(index, 1);
+            if (containerId && containerId.startsWith('fileList')) {
+                renderFileList(type);
+                return;
+            }
+            const container = containerId ? document.getElementById(containerId) : null;
+            if (container) {
+                renderFileSummary(container, files, { allowRemove: true, type });
+                return;
+            }
+            renderFileList(type);
+        }
+
+        function resetExistingFiles() {
+            appState.existingFiles = {
+                request: [],
+                etc: [],
+                design: [],
+                production: [],
+                aftercare: []
+            };
+        }
+
+        function setExistingFilesFromProject(project) {
+            appState.existingFiles = {
+                request: (project.requestFiles || []).slice(),
+                etc: (project.etcFiles || []).slice(),
+                design: (project.design && project.design.files ? project.design.files.slice() : []),
+                production: (project.production && project.production.files ? project.production.files.slice() : []),
+                aftercare: (project.aftercare && project.aftercare.files ? project.aftercare.files.slice() : [])
+            };
+        }
+
+        function getExistingFilesForEdit(type, fallback = []) {
+            if (appState.existingFiles && Array.isArray(appState.existingFiles[type])) {
+                return appState.existingFiles[type];
+            }
+            return fallback;
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function expandSerialNumbers(rawValue) {
+            const value = (rawValue || '').trim();
+            if (!value) return [];
+            const parts = value.split(/[\s,;]+/).filter(Boolean);
+            const results = [];
+            parts.forEach(part => {
+                const rangeMatch = part.split('~');
+                if (rangeMatch.length === 2) {
+                    const start = rangeMatch[0];
+                    const end = rangeMatch[1];
+                    const startMatch = start.match(/^(.*?)(\d+)$/);
+                    if (!startMatch) {
+                        results.push(part);
+                        return;
+                    }
+                    const prefix = startMatch[1];
+                    const startDigits = startMatch[2];
+                    const endDigits = end.match(/\d+$/) ? end.replace(/\D/g, '') : '';
+                    if (!endDigits) {
+                        results.push(part);
+                        return;
+                    }
+                    const endFull = startDigits.slice(0, startDigits.length - endDigits.length) + endDigits;
+                    const startNum = parseInt(startDigits, 10);
+                    const endNum = parseInt(endFull, 10);
+                    if (Number.isNaN(startNum) || Number.isNaN(endNum) || endNum < startNum) {
+                        results.push(part);
+                        return;
+                    }
+                    for (let num = startNum; num <= endNum; num += 1) {
+                        results.push(`${prefix}${String(num).padStart(startDigits.length, '0')}`);
+                    }
+                } else {
+                    results.push(part);
+                }
+            });
+            return Array.from(new Set(results));
+        }
+
+        function getModelSerialNumbers(model) {
+            if (!model) return [];
+            if (Array.isArray(model.serialNumbers) && model.serialNumbers.length > 0) {
+                return model.serialNumbers;
+            }
+            return expandSerialNumbers(model.serialNumber || '');
+        }
+
+        function readFileAsDataUrl(file) {
+            return new Promise(resolve => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => resolve('');
+                reader.readAsDataURL(file);
+            });
+        }
+
+        async function buildFilePayload(files) {
+            const payloads = await Promise.all(files.map(async (file) => ({
+                name: file.name,
+                size: file.size,
+                type: file.type,
+                lastModified: file.lastModified,
+                dataUrl: await readFileAsDataUrl(file)
+            })));
+            return payloads;
+        }
+
+        // Google 로그인 처리
+        function handleGoogleSignIn() {
+            // 데모 모드에서는 바로 로그인 처리
+            appState.isLoggedIn = true;
+            appState.user = {
+                name: '데모 사용자',
+                email: 'demo@example.com'
+            };
+            
+            localStorage.setItem(STORAGE_KEYS.LOGIN_STATE, 'true');
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(appState.user));
+            
+            updateUI();
+            loadProjects();
+        }
+
+        function handleDemoLogin() {
+            const codeInput = document.getElementById('demoLoginCode');
+            const code = codeInput ? codeInput.value.trim() : '';
+            const deptMap = {
+                '1': '영업',
+                '2': '경리',
+                '3': '설계',
+                '4': '생산',
+                '5': '마스터'
+            };
+            const department = deptMap[code];
+            if (!department) {
+                alert('데모 로그인 코드는 1~5만 입력할 수 있습니다.');
+                return;
+            }
+            appState.isLoggedIn = true;
+            appState.user = {
+                name: department === '마스터' ? '마스터' : `${department} 데모`,
+                email: 'demo@example.com',
+                department
+            };
+            localStorage.setItem(STORAGE_KEYS.LOGIN_STATE, 'true');
+            localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(appState.user));
+            updateUI();
+            loadProjects();
+        }
+
+        // Google 로그아웃 처리
+        function handleGoogleSignOut() {
+            appState.isLoggedIn = false;
+            appState.user = null;
+            
+            localStorage.removeItem(STORAGE_KEYS.LOGIN_STATE);
+            localStorage.removeItem(STORAGE_KEYS.USER);
+            
+            updateUI();
+        }
+
+        // UI 업데이트
+        function updateUI() {
+            const userInfo = document.getElementById('userInfo');
+            const googleSignIn = document.getElementById('googleSignIn');
+            const googleSignOut = document.getElementById('googleSignOut');
+            const loginRequired = document.getElementById('loginRequired');
+            const projectManagement = document.getElementById('projectManagement');
+
+            if (appState.isLoggedIn && appState.user) {
+                const deptLabel = appState.user.department ? ` (${appState.user.department})` : '';
+                userInfo.textContent = `${appState.user.name}${deptLabel}`;
+                googleSignIn.classList.add('hidden');
+                googleSignOut.classList.remove('hidden');
+                loginRequired.classList.add('hidden');
+                projectManagement.classList.remove('hidden');
+            } else {
+                userInfo.textContent = '';
+                googleSignIn.classList.remove('hidden');
+                googleSignOut.classList.add('hidden');
+                loginRequired.classList.remove('hidden');
+                projectManagement.classList.add('hidden');
+            }
+        }
+
+        // 프로젝트 로드
+        function loadProjects() {
+            if (APPS_SCRIPT_CONFIG.ENABLED && APPS_SCRIPT_CONFIG.WEB_APP_URL) {
+                loadProjectsFromServer();
+                return;
+            }
+            const savedProjects = localStorage.getItem(STORAGE_KEYS.PROJECTS);
+            if (savedProjects) {
+                appState.projects = JSON.parse(savedProjects);
+            } else {
+                appState.projects = [];
+                saveProjectsToStorage();
+            }
+            appState.filteredProjects = [...appState.projects];
+            updateStatistics();
+            renderProjects();
+        }
+
+        function loadDeletedProjects() {
+            if (APPS_SCRIPT_CONFIG.ENABLED && APPS_SCRIPT_CONFIG.WEB_APP_URL) {
+                return;
+            }
+            const savedDeleted = localStorage.getItem(STORAGE_KEYS.DELETED);
+            if (savedDeleted) {
+                appState.deletedProjects = JSON.parse(savedDeleted);
+            } else {
+                appState.deletedProjects = [];
+            }
+        }
+
+        function saveDeletedProjects() {
+            if (APPS_SCRIPT_CONFIG.ENABLED && APPS_SCRIPT_CONFIG.WEB_APP_URL) {
+                queueSyncToServer();
+                return;
+            }
+            localStorage.setItem(STORAGE_KEYS.DELETED, JSON.stringify(appState.deletedProjects));
+        }
+
+        function renderDeleteHistoryList() {
+            const list = document.getElementById('deleteHistoryList');
+            if (!list) return;
+            if (appState.deletedProjects.length === 0) {
+                list.innerHTML = '<p class="text-gray-500">삭제된 프로젝트가 없습니다.</p>';
+                return;
+            }
+            list.innerHTML = appState.deletedProjects.map(project => {
+                const deletedAt = project.deletedAt ? new Date(project.deletedAt).toLocaleString('ko-KR') : '-';
+                const deletedBy = project.deletedBy || '-';
+                return `
+                    <div class="flex items-center justify-between border border-gray-200 rounded-lg px-4 py-3">
+                        <div>
+                            <div class="text-gray-900 font-medium">${project.projectNumber || '-'}</div>
+                            <div class="text-xs text-gray-500">${project.projectName || ''} · ${deletedAt} · ${deletedBy}</div>
+                        </div>
+                        <button onclick="purgeDeletedProject('${project.id}')" class="text-xs bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700">영구 삭제</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openDeleteHistoryModal() {
+            renderDeleteHistoryList();
+            document.getElementById('deleteHistoryModal').classList.remove('hidden');
+        }
+
+        function closeDeleteHistoryModal() {
+            document.getElementById('deleteHistoryModal').classList.add('hidden');
+        }
+
+        function deleteProject(projectId) {
+            const index = appState.projects.findIndex(project => project.id === projectId);
+            if (index === -1) return;
+            const project = appState.projects[index];
+            if (!confirm(`${project.projectNumber} 프로젝트를 삭제할까요?`)) return;
+            const deletedRecord = {
+                ...project,
+                deletedAt: new Date().toISOString(),
+                deletedBy: (appState.user && appState.user.name) ? appState.user.name : '시스템'
+            };
+            appState.projects.splice(index, 1);
+            appState.deletedProjects.unshift(deletedRecord);
+            saveProjectsToStorage();
+            saveDeletedProjects();
+            applyCurrentFilter();
+            updateStatistics();
+            renderProjects();
+        }
+
+        function purgeDeletedProject(projectId) {
+            const index = appState.deletedProjects.findIndex(project => project.id === projectId);
+            if (index === -1) return;
+            const projectNumber = appState.deletedProjects[index].projectNumber || '프로젝트';
+            if (!confirm(`${projectNumber} 기록을 완전히 삭제할까요?`)) return;
+            appState.deletedProjects.splice(index, 1);
+            saveDeletedProjects();
+            renderDeleteHistoryList();
+        }
+
+        function openEarlyDeliveryModal(projectId) {
+            const project = appState.projects.find(p => p.id === projectId);
+            if (!project) return;
+            if (isDeliveryCompleted(project)) return;
+            appState.currentEditId = projectId;
+            document.getElementById('earlyDeliveryModalDate').value = '';
+            document.getElementById('earlyDeliveryModalNotes').value = '';
+            document.getElementById('earlyDeliveryModal').classList.remove('hidden');
+        }
+
+        function closeEarlyDeliveryModalHandler() {
+            document.getElementById('earlyDeliveryModal').classList.add('hidden');
+            document.getElementById('earlyDeliveryModalDate').value = '';
+            document.getElementById('earlyDeliveryModalNotes').value = '';
+            appState.currentEditId = null;
+        }
+
+        function saveEarlyDeliveryMemo() {
+            const projectId = appState.currentEditId;
+            const project = appState.projects.find(p => p.id === projectId);
+            if (!project) return;
+            const dateValue = document.getElementById('earlyDeliveryModalDate').value;
+            const notesValue = document.getElementById('earlyDeliveryModalNotes').value.trim();
+            if (!dateValue && !notesValue) {
+                closeEarlyDeliveryModalHandler();
+                return;
+            }
+            if (!Array.isArray(project.earlyDeliveryMemos)) {
+                project.earlyDeliveryMemos = normalizeEarlyDeliveryMemos(project);
+            }
+            project.earlyDeliveryMemos.unshift({
+                id: Date.now().toString(),
+                date: dateValue,
+                notes: notesValue
+            });
+            project.earlyDeliveryDate = project.earlyDeliveryMemos[0].date || '';
+            project.earlyDeliveryNotes = project.earlyDeliveryMemos[0].notes || '';
+            saveProjectsToStorage();
+            applyCurrentFilter();
+            renderProjects();
+            closeEarlyDeliveryModalHandler();
+        }
+
+        function deleteEarlyDeliveryMemo(projectId, index) {
+            const project = appState.projects.find(p => p.id === projectId);
+            if (!project) return;
+            if (!confirm('조기 납품 메모를 삭제할까요?')) return;
+            const memos = normalizeEarlyDeliveryMemos(project);
+            if (index < 0 || index >= memos.length) return;
+            memos.splice(index, 1);
+            project.earlyDeliveryMemos = memos;
+            project.earlyDeliveryDate = memos[0] ? memos[0].date : '';
+            project.earlyDeliveryNotes = memos[0] ? memos[0].notes : '';
+            saveProjectsToStorage();
+            renderViewContext(project);
+        }
+
+        function markDeliveryCompleted(projectId) {
+            const project = appState.projects.find(p => p.id === projectId);
+            if (!project) return;
+            if (!isReadyCompleted(project)) return;
+            if (!confirm('납품 완료로 처리할까요?')) return;
+            project.deliveryCompletedAt = new Date().toISOString().split('T')[0];
+            project.department = '';
+            saveProjectsToStorage();
+            applyCurrentFilter();
+            updateStatistics();
+            renderProjects();
+        }
+
+        function cancelReadyCompletion(projectId) {
+            const project = appState.projects.find(p => p.id === projectId);
+            if (!project) return;
+            if (!isReadyCompleted(project)) return;
+            if (!confirm('준비 완료를 취소하고 이전 단계로 이동할까요?')) return;
+            project.deliveryCompletedAt = null;
+            project.status = '진행중';
+            project.department = '생산';
+            if (!project.workflow) project.workflow = {};
+            project.workflow['생산'] = project.workflow['생산'] || { completed: false, completedAt: null, completedBy: null };
+            project.workflow['생산'].completed = false;
+            project.workflow['생산'].completedAt = null;
+            project.workflow['생산'].completedBy = null;
+            if (!project.production) project.production = {};
+            project.production.started = true;
+            project.production.startedAt = project.production.startedAt || new Date().toISOString().split('T')[0];
+            saveProjectsToStorage();
+            applyCurrentFilter();
+            updateStatistics();
+            renderProjects();
+        }
+
+        // 프로젝트를 로컬 스토리지에 저장
+        function saveProjectsToStorage() {
+            if (APPS_SCRIPT_CONFIG.ENABLED && APPS_SCRIPT_CONFIG.WEB_APP_URL) {
+                queueSyncToServer();
+                return;
+            }
+            localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(appState.projects));
+        }
+
+        let syncTimer = null;
+        let syncInFlight = false;
+        let syncPending = false;
+
+        function queueSyncToServer() {
+            syncPending = true;
+            if (syncTimer) clearTimeout(syncTimer);
+            syncTimer = setTimeout(syncProjectsToServer, 400);
+        }
+
+        async function syncProjectsToServer() {
+            if (syncInFlight) return;
+            syncInFlight = true;
+            syncPending = false;
+            try {
+                const response = await callAppsScript('syncAll', {
+                    projects: appState.projects,
+                    deletedProjects: appState.deletedProjects,
+                    user: appState.user || null
+                });
+                if (response && Array.isArray(response.projects)) {
+                    appState.projects = response.projects;
+                    appState.filteredProjects = [...appState.projects];
+                    updateStatistics();
+                    renderProjects();
+                }
+                if (response && Array.isArray(response.deletedProjects)) {
+                    appState.deletedProjects = response.deletedProjects;
+                }
+            } catch (err) {
+                console.error('syncProjectsToServer failed', err);
+            } finally {
+                syncInFlight = false;
+                if (syncPending) {
+                    queueSyncToServer();
+                }
+            }
+        }
+
+        async function loadProjectsFromServer() {
+            try {
+                const response = await callAppsScript('loadAll', {});
+                appState.projects = Array.isArray(response.projects) ? response.projects : [];
+                appState.deletedProjects = Array.isArray(response.deletedProjects) ? response.deletedProjects : [];
+                appState.filteredProjects = [...appState.projects];
+                updateStatistics();
+                renderProjects();
+            } catch (err) {
+                console.error('loadProjectsFromServer failed', err);
+                appState.projects = [];
+                appState.filteredProjects = [];
+                updateStatistics();
+                renderProjects();
+            }
+        }
+
+        async function callAppsScript(action, payload) {
+            if (!APPS_SCRIPT_CONFIG.WEB_APP_URL) {
+                throw new Error('Missing Apps Script URL');
+            }
+            const response = await fetch(APPS_SCRIPT_CONFIG.WEB_APP_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action, ...payload })
+            });
+            if (!response.ok) {
+                throw new Error(`Apps Script error: ${response.status}`);
+            }
+            return response.json();
+        }
+
+        // 통계 업데이트
+        function updateStatistics() {
+            const total = appState.projects.length;
+            const inProgress = appState.projects.filter(p => p.status === '진행중' || p.status === '확인중').length;
+            const readyCompleted = appState.projects.filter(p => isReadyCompleted(p)).length;
+            const deliveryCompleted = appState.projects.filter(p => isDeliveryCompleted(p)).length;
+            const completed = readyCompleted + deliveryCompleted;
+
+            const pendingProjects = appState.projects.filter(p => !isProjectClosed(p));
+            const salesCount = pendingProjects.filter(p => getCurrentWorkflowStep(p) === '영업').length;
+            const accountingCount = pendingProjects.filter(p => getCurrentWorkflowStep(p) === '경리').length;
+            const designCount = pendingProjects.filter(p => getCurrentWorkflowStep(p) === '설계').length;
+            const productionPendingCount = pendingProjects.filter(p => getCurrentWorkflowStep(p) === '생산' && !isProductionStarted(p)).length;
+            const productionInProgressCount = pendingProjects.filter(p => getCurrentWorkflowStep(p) === '생산' && isProductionStarted(p)).length;
+
+            // 통계 업데이트
+            document.getElementById('countAll').textContent = total;
+            document.getElementById('countSales').textContent = salesCount;
+            document.getElementById('countAccounting').textContent = accountingCount;
+            document.getElementById('countDesign').textContent = designCount;
+            document.getElementById('countProductionPending').textContent = productionPendingCount;
+            document.getElementById('countProductionInProgress').textContent = productionInProgressCount;
+            document.getElementById('countCompleted').textContent = readyCompleted;
+            document.getElementById('countDeliveryCompleted').textContent = deliveryCompleted;
+
+            // 통계 카드 업데이트
+            document.getElementById('totalProjects').textContent = total;
+            document.getElementById('inProgressCount').textContent = inProgress;
+            document.getElementById('completedCount').textContent = readyCompleted;
+            document.getElementById('deliveryCompletedCount').textContent = deliveryCompleted;
+
+            // 마지막 업데이트 시간
+            document.getElementById('lastUpdated').textContent = `마지막 업데이트: ${new Date().toLocaleTimeString('ko-KR')}`;
+        }
+
+        // 프로젝트 렌더링
+        function renderProjects() {
+            const tableBody = document.getElementById('projectTableBody');
+            const filteredCount = document.getElementById('filteredCount');
+            
+            filteredCount.textContent = `총 ${appState.filteredProjects.length}개`;
+            
+            tableBody.innerHTML = appState.filteredProjects.map(project => {
+                const currentWorkflowStep = getCurrentWorkflowStep(project);
+                const userDept = appState.user && appState.user.department;
+                const isMaster = userDept === '마스터';
+                const showDeptAlert = userDept && project.notifications &&
+                    project.notifications.byDept && project.notifications.byDept[userDept];
+            const showAllEdit = appState.currentFilter === 'all' && !isProjectClosed(project);
+            const isProductionStep = currentWorkflowStep === '생산';
+            const productionStarted = isProductionStarted(project);
+            const departmentLabel = isProductionStep && !isProjectClosed(project)
+                ? (productionStarted ? '생산 (진행중)' : '생산 (미확인)')
+                : currentWorkflowStep;
+            const statusText = isDeliveryCompleted(project)
+                ? '납품 완료'
+                : (isProductionStep && !productionStarted ? '생산 확인중' : (project.status === '완료' ? '준비 완료' : project.status));
+            return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            <button class="text-blue-600 hover:text-blue-700 underline" onclick="openProjectView('${project.id}')">${project.projectNumber}</button>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${project.projectName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            ${
+                                isProjectClosed(project) ? 
+                                `<span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">-</span>` :
+                                `<span class="px-2 py-1 text-xs font-medium rounded-full ${
+                                    currentWorkflowStep === '영업' ? 'bg-blue-100 text-blue-800' :
+                                    currentWorkflowStep === '경리' ? 'bg-green-100 text-green-800' :
+                                    currentWorkflowStep === '설계' ? 'bg-purple-100 text-purple-800' :
+                                    'bg-orange-100 text-orange-800'
+                                }">${departmentLabel}</span>`
+                            }
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <span class="px-2 py-1 text-xs font-medium rounded-full ${
+                                statusText === '생산 확인중' ? 'bg-blue-100 text-blue-800' :
+                                statusText === '진행중' ? 'bg-yellow-100 text-yellow-800' :
+                                statusText === '준비 완료' ? 'bg-green-100 text-green-800' :
+                                statusText === '납품 완료' ? 'bg-emerald-100 text-emerald-800' :
+                                'bg-red-100 text-red-800'
+                            }">${statusText}</span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${project.manager}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${project.requestDate}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            ${isReadyCompleted(project) ? 
+                                `<button onclick="cancelReadyCompletion('${project.id}')" class="bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition-colors ml-2">준비완료 취소</button>
+                                 <button onclick="markDeliveryCompleted('${project.id}')" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700 transition-colors ml-2">납품 완료</button>` :
+                                ''
+                            }
+                            ${isDeliveryCompleted(project) ? 
+                                `<button onclick="openAftercare('${project.id}')" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700 transition-colors ml-2">메모추가</button>` :
+                                ''
+                            }
+                            ${!isProjectClosed(project) ? 
+                                `<button onclick="deleteProject('${project.id}')" class="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700 transition-colors ml-2">삭제</button>` :
+                                ''
+                            }
+                            ${!isDeliveryCompleted(project) ? `<button onclick="openEarlyDeliveryModal('${project.id}')" class="bg-teal-600 text-white px-3 py-1 rounded text-xs hover:bg-teal-700 transition-colors ml-2">조기납품 메모</button>` : ''}
+                            ${!isProjectClosed(project) && isMaster ?
+                                `<button onclick="processProject('${project.id}')" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors ml-2">처리하기</button>
+                                 <button onclick="openEditDepartmentModal('${project.id}')" class="bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition-colors ml-2">수정하기</button>` :
+                                !isProjectClosed(project) && canProcessProject(project) ? 
+                                `<button onclick="processProject('${project.id}')" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors ml-2">처리하기</button>` :
+                                !isProjectClosed(project) && canEditAccounting(project) ?
+                                `<button onclick="openAccountingEdit('${project.id}')" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700 transition-colors ml-2">사양수정</button>` :
+                                !isProjectClosed(project) && canEditDesign(project) ?
+                                `<button onclick="openDesignEdit('${project.id}')" class="bg-purple-600 text-white px-3 py-1 rounded text-xs hover:bg-purple-700 transition-colors ml-2">설계수정</button>` :
+                                !isProjectClosed(project) && canEditSales(project) ?
+                                `<button onclick="openSalesEdit('${project.id}')" class="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition-colors ml-2">영업수정</button>` :
+                                (!isProjectClosed(project) ? `<span class="text-xs text-gray-500 ml-2">대기중</span>` : '')
+                            }
+                            ${showDeptAlert ? `<span class="ml-2 text-xs text-red-600">변경 확인</span>` : ''}
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // 현재 워크플로우 단계 가져오기
+        function getCurrentWorkflowStep(project) {
+            if (!project.workflow) return '영업';
+            
+            for (let step of WORKFLOW_STEPS) {
+                if (!project.workflow[step] || !project.workflow[step].completed) {
+                    return step;
+                }
+            }
+            return '생산';
+        }
+
+        // 프로젝트 처리 가능 여부 확인
+        function canProcessProject(project) {
+            const currentStep = getCurrentWorkflowStep(project);
+            
+            if (TEST_MODE) return true;
+
+            // 현재 로그인한 사용자의 부서와 현재 단계가 일치해야 함
+            if (!appState.user || !appState.user.department) return false;
+            if (appState.user.department === '마스터') return true;
+            if (isProjectClosed(project)) return false;
+            
+            return currentStep === appState.user.department;
+        }
+
+        function isProductionStarted(project) {
+            return !!(project.production && project.production.started);
+        }
+
+        function isDeliveryCompleted(project) {
+            return !!project.deliveryCompletedAt;
+        }
+
+        function isReadyCompleted(project) {
+            return (project.status === '완료' || project.status === '준비 완료') && !isDeliveryCompleted(project);
+        }
+
+        function isProjectClosed(project) {
+            return isReadyCompleted(project) || isDeliveryCompleted(project);
+        }
+
+        function canEditAccounting(project) {
+            if (!appState.user || !appState.user.department) return false;
+            if (appState.user.department === '마스터') return true;
+            if (appState.user.department !== '경리') return false;
+            const currentStep = getCurrentWorkflowStep(project);
+            if (currentStep === '경리') return false;
+            return !!(project.workflow && project.workflow['경리'] && project.workflow['경리'].completed);
+        }
+
+        function canEditDesign(project) {
+            if (!appState.user || !appState.user.department) return false;
+            if (appState.user.department === '마스터') return true;
+            if (appState.user.department !== '설계') return false;
+            const currentStep = getCurrentWorkflowStep(project);
+            if (currentStep === '설계') return false;
+            return !!(project.workflow && project.workflow['설계'] && project.workflow['설계'].completed);
+        }
+
+        function canEditSales(project) {
+            if (!appState.user || !appState.user.department) return false;
+            if (appState.user.department === '마스터') return true;
+            if (appState.user.department !== '영업') return false;
+            const currentStep = getCurrentWorkflowStep(project);
+            if (currentStep === '영업') return false;
+            return !!(project.workflow && project.workflow['영업'] && project.workflow['영업'].completed);
+        }
+
+        // 부서별 필터링
+        function filterByDepartment(department) {
+            appState.currentFilter = department;
+            appState.filteredProjects = appState.projects.filter(project => {
+                const currentStep = getCurrentWorkflowStep(project);
+                return !isProjectClosed(project) && currentStep === department;
+            });
+            renderProjects();
+        }
+
+        // 상태별 필터링
+        function filterByStatus(status) {
+            if (status === 'all') {
+                appState.currentFilter = 'all';
+                appState.filteredProjects = [...appState.projects];
+            } else {
+                appState.currentFilter = status;
+                if (status === '준비 완료') {
+                    appState.filteredProjects = appState.projects.filter(project => isReadyCompleted(project));
+                } else {
+                    appState.filteredProjects = appState.projects.filter(project => project.status === status);
+                }
+            }
+            renderProjects();
+        }
+
+        function filterByProductionStatus(status) {
+            appState.currentFilter = status;
+            appState.filteredProjects = appState.projects.filter(project => {
+                if (isProjectClosed(project)) return false;
+                if (getCurrentWorkflowStep(project) !== '생산') return false;
+                return status === 'production_pending' ? !isProductionStarted(project) : isProductionStarted(project);
+            });
+            renderProjects();
+        }
+
+        function filterByDeliveryCompleted() {
+            appState.currentFilter = 'delivery_completed';
+            appState.filteredProjects = appState.projects.filter(project => !!project.deliveryCompletedAt);
+            renderProjects();
+        }
+
+        function applyCurrentFilter() {
+            if (appState.currentFilter === 'all') {
+                appState.filteredProjects = [...appState.projects];
+            } else if (['진행중', '보류', '확인중'].includes(appState.currentFilter)) {
+                appState.filteredProjects = appState.projects.filter(p => p.status === appState.currentFilter);
+            } else if (appState.currentFilter === '준비 완료') {
+                appState.filteredProjects = appState.projects.filter(p => isReadyCompleted(p));
+            } else if (appState.currentFilter === 'delivery_completed') {
+                appState.filteredProjects = appState.projects.filter(project => !!project.deliveryCompletedAt);
+            } else if (appState.currentFilter === 'production_pending' || appState.currentFilter === 'production_in_progress') {
+                appState.filteredProjects = appState.projects.filter(project => {
+                    if (isProjectClosed(project)) return false;
+                    if (getCurrentWorkflowStep(project) !== '생산') return false;
+                    return appState.currentFilter === 'production_pending' ? !isProductionStarted(project) : isProductionStarted(project);
+                });
+            } else {
+                appState.filteredProjects = appState.projects.filter(p => !isProjectClosed(p) && getCurrentWorkflowStep(p) === appState.currentFilter);
+            }
+        }
+
+        // 새 프로젝트 모달 열기 (영업부 전용)
+        function openNewProjectModal() {
+            appState.editMode = null;
+            // 새 프로젝트는 영업부만 생성 가능
+            if (!appState.user || appState.user.department !== '영업') {
+                if (!TEST_MODE) {
+                    alert('새 프로젝트는 영업부만 생성할 수 있습니다.');
+                    return;
+                }
+                ensureTestUser('영업');
+            }
+
+            document.getElementById('projectModal').classList.remove('hidden');
+            document.getElementById('modalTitle').textContent = '새 프로젝트 등록 (영업부)';
+            document.getElementById('projectForm').reset();
+            setFormMode('default');
+            resetAccountingForm();
+            resetDesignForm();
+            
+            // 영업부로 고정
+            document.getElementById('currentDepartment').value = '영업';
+            
+            // 기본값 설정
+            document.getElementById('requestDate').value = new Date().toISOString().split('T')[0];
+            document.getElementById('status').value = '진행중';
+            document.getElementById('priority').value = '중간';
+
+            // 프로젝트 번호 자동 생성
+            updateProjectNumber();
+            
+            // 다음 단계 설정
+            document.getElementById('nextDepartment').innerHTML = '<option value="경리">경리</option>';
+            document.getElementById('submitBtn').textContent = '경리부로 전달';
+            document.getElementById('saveBtn').classList.remove('hidden');
+            
+            // 파일 목록 초기화
+            appState.attachedFilesRequest = [];
+            appState.attachedFilesEtc = [];
+            renderFileList('request');
+            renderFileList('etc');
+            
+            // 워크플로우 단계 감추기 (새 프로젝트에서는 필요 없음)
+            document.getElementById('workflowSteps').style.display = 'none';
+            document.getElementById('existingProjectWorkflow').style.display = 'none';
+            
+            // 입력 필드 활성화 (새 프로젝트용)
+            document.getElementById('projectName').readOnly = false;
+            document.getElementById('manager').readOnly = false;
+            document.getElementById('status').disabled = false;
+            document.getElementById('priority').disabled = false;
+            document.getElementById('requestDate').readOnly = false;
+            document.getElementById('deliveryDate').readOnly = false;
+            document.getElementById('notes').readOnly = false;
+            
+            // 입력 필드 활성화 (새 프로젝트용)
+            document.getElementById('projectName').readOnly = false;
+            document.getElementById('manager').readOnly = false;
+            document.getElementById('status').disabled = false;
+            document.getElementById('priority').disabled = false;
+            document.getElementById('requestDate').readOnly = false;
+            document.getElementById('deliveryDate').readOnly = false;
+            document.getElementById('notes').readOnly = false;
+            
+            appState.currentEditId = null;
+        }
+
+        // 프로젝트 처리 (기존 프로젝트)
+        function processProject(id) {
+            const project = appState.projects.find(p => p.id === id);
+            if (!project) return;
+
+            const currentStep = getCurrentWorkflowStep(project);
+            appState.editMode = null;
+            setExistingFilesFromProject(project);
+            
+            // 권한 확인
+            if (!appState.user || (appState.user.department !== currentStep && appState.user.department !== '마스터')) {
+                if (!TEST_MODE) {
+                    alert(`${currentStep}부만 이 프로젝트를 처리할 수 있습니다.`);
+                    return;
+                }
+                ensureTestUser(currentStep);
+            }
+
+            appState.currentEditId = id;
+            if (currentStep === '경리') {
+                document.getElementById('modalTitle').textContent = '경리부 - 사양확정';
+                setFormMode('accounting');
+                populateAccountingForm(project);
+                document.getElementById('accountingSubmitBtn').textContent = '설계부로 전달';
+                document.getElementById('accountingSaveBtn').classList.add('hidden');
+                document.getElementById('saveBtn').classList.add('hidden');
+            } else if (currentStep === '설계') {
+                document.getElementById('modalTitle').textContent = '설계부 - 프로젝트 처리';
+                setFormMode('design');
+                resetDesignForm();
+                renderDesignFiles(project);
+                renderAccountingSummary(project);
+                document.getElementById('designMemo').value = (project.design && project.design.memo) || '';
+                document.getElementById('saveBtn').classList.add('hidden');
+            } else if (currentStep === '생산') {
+                if (!project.production) project.production = {};
+                document.getElementById('modalTitle').textContent = '생산부 - 프로젝트 처리';
+                setFormMode('production');
+                resetProductionForm();
+                renderProductionContext(project);
+                document.getElementById('productionMemo').value = (project.production && project.production.memo) || '';
+                const productionCompleteBtn = document.getElementById('productionCompleteBtn');
+                if (project.production && project.production.started) {
+                    productionCompleteBtn.textContent = '납품준비완료';
+                    productionCompleteBtn.dataset.action = 'complete';
+                } else {
+                    productionCompleteBtn.textContent = '생산진행하기';
+                    productionCompleteBtn.dataset.action = 'start';
+                }
+                document.getElementById('saveBtn').classList.add('hidden');
+            } else {
+                document.getElementById('modalTitle').textContent = `${currentStep}부 - 프로젝트 처리`;
+                setFormMode('default');
+                document.getElementById('saveBtn').classList.toggle('hidden', currentStep !== '영업');
+            }
+            
+            // 프로젝트 정보 표시
+            document.getElementById('projectNumber').value = project.projectNumber;
+            document.getElementById('projectName').value = project.projectName;
+            document.getElementById('currentDepartment').value = currentStep;
+            document.getElementById('manager').value = project.manager;
+            document.getElementById('status').value = project.status === '완료' ? '준비 완료' : project.status;
+            document.getElementById('priority').value = project.priority;
+            document.getElementById('requestDate').value = project.requestDate;
+            document.getElementById('deliveryDate').value = project.deliveryDate;
+            document.getElementById('notes').value = project.notes || '';
+            document.getElementById('earlyDeliveryDate').value = project.earlyDeliveryDate || '';
+            document.getElementById('earlyDeliveryNotes').value = project.earlyDeliveryNotes || '';
+            
+            // 입력 필드 읽기 전용으로 설정 (기존 프로젝트는 수정 불가)
+            document.getElementById('projectName').readOnly = true;
+            document.getElementById('manager').readOnly = true;
+            document.getElementById('status').disabled = false; // 상태는 변경 가능
+            document.getElementById('priority').disabled = false; // 우선순위는 변경 가능
+            document.getElementById('requestDate').readOnly = true;
+            document.getElementById('deliveryDate').readOnly = true;
+            document.getElementById('notes').readOnly = false; // 메모는 추가 가능
+            
+            // 워크플로우 상태 표시
+            document.getElementById('existingProjectWorkflow').style.display = 'block';
+            updateWorkflowDisplay(project);
+            document.getElementById('workflowSteps').style.display = 'flex';
+            
+            // 다음 단계 설정
+            const currentIndex = WORKFLOW_STEPS.indexOf(currentStep);
+            const nextStep = WORKFLOW_STEPS[currentIndex + 1];
+            
+            if (nextStep) {
+                document.getElementById('nextDepartment').innerHTML = `<option value="${nextStep}">${nextStep}</option>`;
+                document.getElementById('submitBtn').textContent = `${nextStep}부로 전달`;
+            } else {
+                document.getElementById('nextDepartment').innerHTML = '<option value="">최종 완료</option>';
+                document.getElementById('submitBtn').textContent = '저장';
+            }
+            
+            // 파일 목록 초기화
+            appState.attachedFilesRequest = [];
+            appState.attachedFilesEtc = [];
+            renderFileList('request');
+            renderFileList('etc');
+            
+            document.getElementById('projectModal').classList.remove('hidden');
+        }
+
+        function openAccountingEdit(id) {
+            const project = appState.projects.find(p => p.id === id);
+            if (!project) return;
+            if (!TEST_MODE && (!appState.user || (appState.user.department !== '경리' && appState.user.department !== '마스터'))) return;
+
+            setExistingFilesFromProject(project);
+            appState.currentEditId = id;
+            appState.editMode = 'accounting';
+            document.getElementById('modalTitle').textContent = '경리부 - 사양수정';
+            setFormMode('accounting');
+            populateAccountingForm(project);
+            document.getElementById('accountingSubmitBtn').textContent = '설계부로 전달';
+            document.getElementById('accountingSaveBtn').classList.remove('hidden');
+            document.getElementById('currentDepartment').value = project.department || getCurrentWorkflowStep(project);
+            document.getElementById('existingProjectWorkflow').style.display = 'block';
+            updateWorkflowDisplay(project);
+            document.getElementById('workflowSteps').style.display = 'flex';
+            document.getElementById('projectModal').classList.remove('hidden');
+        }
+
+        function openDesignEdit(id) {
+            const project = appState.projects.find(p => p.id === id);
+            if (!project) return;
+            if (!TEST_MODE && (!appState.user || (appState.user.department !== '설계' && appState.user.department !== '마스터'))) return;
+
+            setExistingFilesFromProject(project);
+            appState.currentEditId = id;
+            appState.editMode = 'design';
+            document.getElementById('modalTitle').textContent = '설계부 - 수정';
+            setFormMode('design');
+            resetDesignForm();
+            renderDesignFiles(project);
+            renderAccountingSummary(project);
+            document.getElementById('designMemo').value = (project.design && project.design.memo) || '';
+
+            document.getElementById('currentDepartment').value = project.department || getCurrentWorkflowStep(project);
+            document.getElementById('existingProjectWorkflow').style.display = 'block';
+            updateWorkflowDisplay(project);
+            document.getElementById('workflowSteps').style.display = 'flex';
+            document.getElementById('nextDepartment').classList.add('hidden');
+            const nextLabel = document.querySelector('#nextStepSection label');
+            if (nextLabel) nextLabel.classList.add('hidden');
+            document.getElementById('submitBtn').textContent = '생산부로 전달';
+            document.getElementById('submitBtn').dataset.action = 'design_forward';
+            document.getElementById('saveBtn').classList.remove('hidden');
+            document.getElementById('saveBtn').textContent = '수정 저장';
+            document.getElementById('projectModal').classList.remove('hidden');
+        }
+
+
+        function openSalesEdit(id) {
+            const project = appState.projects.find(p => p.id === id);
+            if (!project) return;
+            if (!TEST_MODE && (!appState.user || (appState.user.department !== '영업' && appState.user.department !== '마스터'))) return;
+
+            setExistingFilesFromProject(project);
+            appState.currentEditId = id;
+            appState.editMode = 'sales';
+            document.getElementById('modalTitle').textContent = '영업부 - 수정';
+            setFormMode('default');
+
+            document.getElementById('projectNumber').value = project.projectNumber;
+            document.getElementById('projectName').value = project.projectName;
+            document.getElementById('currentDepartment').value = project.department || getCurrentWorkflowStep(project);
+            document.getElementById('manager').value = project.manager;
+            document.getElementById('status').value = project.status === '완료' ? '준비 완료' : project.status;
+            document.getElementById('priority').value = project.priority;
+            document.getElementById('requestDate').value = project.requestDate;
+            document.getElementById('deliveryDate').value = project.deliveryDate;
+            document.getElementById('notes').value = project.notes || '';
+            document.getElementById('earlyDeliveryDate').value = project.earlyDeliveryDate || '';
+            document.getElementById('earlyDeliveryNotes').value = project.earlyDeliveryNotes || '';
+            document.getElementById('earlyDeliveryDate').value = project.earlyDeliveryDate || '';
+            document.getElementById('earlyDeliveryNotes').value = project.earlyDeliveryNotes || '';
+
+            document.getElementById('projectName').readOnly = false;
+            document.getElementById('manager').readOnly = false;
+            document.getElementById('status').disabled = false;
+            document.getElementById('priority').disabled = false;
+            document.getElementById('requestDate').readOnly = false;
+            document.getElementById('deliveryDate').readOnly = false;
+            document.getElementById('notes').readOnly = false;
+
+            document.getElementById('existingProjectWorkflow').style.display = 'block';
+            updateWorkflowDisplay(project);
+            document.getElementById('workflowSteps').style.display = 'flex';
+
+            document.getElementById('nextDepartment').classList.add('hidden');
+            const nextLabel = document.querySelector('#nextStepSection label');
+            if (nextLabel) nextLabel.classList.add('hidden');
+            document.getElementById('submitBtn').textContent = '수정 저장';
+
+            appState.attachedFilesRequest = [];
+            appState.attachedFilesEtc = [];
+            renderFileList('request');
+            renderFileList('etc');
+
+            document.getElementById('projectModal').classList.remove('hidden');
+        }
+
+        function openEditDepartmentModal(id) {
+            appState.pendingEditId = id;
+            const project = appState.projects.find(p => p.id === id);
+            const currentStep = project ? getCurrentWorkflowStep(project) : '영업';
+            document.getElementById('editDepartmentSelect').value = currentStep;
+            document.getElementById('editDepartmentModal').classList.remove('hidden');
+        }
+
+        function closeEditDepartmentModal() {
+            appState.pendingEditId = null;
+            document.getElementById('editDepartmentModal').classList.add('hidden');
+        }
+
+        function confirmEditDepartment() {
+            const dept = document.getElementById('editDepartmentSelect').value;
+            const project = appState.projects.find(p => p.id === appState.pendingEditId);
+            closeEditDepartmentModal();
+            if (!project) return;
+            const currentStep = getCurrentWorkflowStep(project);
+            if (dept === currentStep) {
+                processProject(project.id);
+                return;
+            }
+            if (dept === '생산') {
+                processProject(project.id);
+                return;
+            }
+            if (dept === '영업') {
+                openSalesEdit(project.id);
+                return;
+            }
+            if (dept === '경리') {
+                openAccountingEdit(project.id);
+                return;
+            }
+            if (dept === '설계') {
+                openDesignEdit(project.id);
+                return;
+            }
+            alert('현재 단계가 아니어서 수정할 수 없습니다.');
+        }
+
+        function openAftercare(id) {
+            const project = appState.projects.find(p => p.id === id);
+            if (!project || !isDeliveryCompleted(project)) return;
+            setExistingFilesFromProject(project);
+            appState.currentEditId = id;
+            appState.editMode = 'aftercare';
+            setFormMode('aftercare');
+            resetAftercareForm();
+            document.getElementById('modalTitle').textContent = 'AS 메모 추가';
+            const deliveryInput = document.getElementById('aftercareDeliveryDateInput');
+            if (deliveryInput) {
+                deliveryInput.value = project.deliveryCompletedAt || '';
+            }
+            document.getElementById('aftercareMemo').value = (project.aftercare && project.aftercare.memo) || '';
+            if (project.aftercare && project.aftercare.files) {
+                renderFileSummary(
+                    document.getElementById('fileListAftercare'),
+                    getExistingFilesForEdit('aftercare', project.aftercare.files),
+                    { allowRemove: true, type: 'aftercare' }
+                );
+            }
+            document.getElementById('existingProjectWorkflow').style.display = 'block';
+            updateWorkflowDisplay(project);
+            document.getElementById('workflowSteps').style.display = 'flex';
+            document.getElementById('projectModal').classList.remove('hidden');
+        }
+
+        function openProjectView(id) {
+            const project = appState.projects.find(p => p.id === id);
+            if (!project) return;
+            appState.currentEditId = id;
+            appState.editMode = 'view';
+            setFormMode('view');
+            document.getElementById('modalTitle').textContent = '프로젝트 조회';
+            renderViewContext(project);
+            document.getElementById('existingProjectWorkflow').style.display = 'block';
+            updateWorkflowDisplay(project);
+            document.getElementById('workflowSteps').style.display = 'flex';
+            document.getElementById('projectModal').classList.remove('hidden');
+        }
+
+        // 워크플로우 상태 표시 업데이트
+        function updateWorkflowDisplay(project) {
+            const workflowSteps = document.getElementById('workflowSteps');
+            const currentStep = getCurrentWorkflowStep(project);
+            const displaySteps = [
+                { id: '영업', label: '영업' },
+                { id: '경리', label: '경리' },
+                { id: '설계', label: '설계' },
+                { id: 'production_pending', label: '생산 확인중' },
+                { id: 'production_in_progress', label: '생산중' },
+                { id: 'ready', label: '준비완료' },
+                { id: 'delivered', label: '납품완료' }
+            ];
+            const productionStarted = isProductionStarted(project);
+            const readyCompleted = isReadyCompleted(project);
+            const deliveryCompleted = isDeliveryCompleted(project);
+
+            workflowSteps.innerHTML = displaySteps.map(step => {
+                let status = 'pending';
+                let text = step.label;
+
+                if (step.id === '영업' || step.id === '경리' || step.id === '설계') {
+                    if (project.workflow && project.workflow[step.id] && project.workflow[step.id].completed) {
+                        status = 'completed';
+                        text = `${step.label} ✓`;
+                    } else if (step.id === currentStep && !readyCompleted && !deliveryCompleted) {
+                        status = 'active';
+                        text = `${step.label} 진행중`;
+                    }
+                } else if (step.id === 'production_pending') {
+                    if (productionStarted || readyCompleted || deliveryCompleted) {
+                        status = 'completed';
+                        text = `${step.label} ✓`;
+                    } else if (currentStep === '생산' && !productionStarted && !readyCompleted && !deliveryCompleted) {
+                        status = 'active';
+                    }
+                } else if (step.id === 'production_in_progress') {
+                    if (readyCompleted || deliveryCompleted) {
+                        status = 'completed';
+                        text = `${step.label} ✓`;
+                    } else if (currentStep === '생산' && productionStarted && !readyCompleted && !deliveryCompleted) {
+                        status = 'active';
+                    }
+                } else if (step.id === 'ready') {
+                    if (deliveryCompleted) {
+                        status = 'completed';
+                        text = `${step.label} ✓`;
+                    } else if (readyCompleted) {
+                        status = 'active';
+                    }
+                } else if (step.id === 'delivered') {
+                    if (deliveryCompleted) {
+                        status = 'active';
+                    }
+                }
+
+                return `
+                    <div class="workflow-step text-center px-4 py-2 rounded-lg workflow-${status}" data-step="${step.id}">
+                        <div class="text-xs font-medium">${text}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 모달 닫기
+        function closeProjectModal() {
+            document.getElementById('projectModal').classList.add('hidden');
+            document.getElementById('projectForm').reset();
+            appState.currentEditId = null;
+            appState.editMode = null;
+            appState.attachedFilesRequest = [];
+            appState.attachedFilesEtc = [];
+            appState.attachedFilesDesign = [];
+            appState.attachedFilesProduction = [];
+            appState.attachedFilesAftercare = [];
+            resetExistingFiles();
+            appState.submitAction = null;
+            resetAccountingForm();
+            resetDesignForm();
+            resetProductionForm();
+            resetAftercareForm();
+            setFormMode('default');
+            const nextDepartment = document.getElementById('nextDepartment');
+            if (nextDepartment) nextDepartment.classList.remove('hidden');
+            const nextLabel = document.querySelector('#nextStepSection label');
+            if (nextLabel) nextLabel.classList.remove('hidden');
+            const saveBtn = document.getElementById('saveBtn');
+            if (saveBtn) saveBtn.classList.add('hidden');
+            const accountingSaveBtn = document.getElementById('accountingSaveBtn');
+            if (accountingSaveBtn) accountingSaveBtn.classList.add('hidden');
+            const submitBtn = document.getElementById('submitBtn');
+            if (submitBtn) {
+                submitBtn.dataset.action = '';
+            }
+        }
+
+        // 프로젝트 저장
+        async function handleProjectSubmit(e) {
+            e.preventDefault();
+            ensureTestUser(document.getElementById('currentDepartment').value);
+            updateProjectNumber();
+            let submitAction = appState.submitAction;
+            appState.submitAction = null;
+            const submitBtn = document.getElementById('submitBtn');
+            if (!submitAction && submitBtn && submitBtn.dataset.action) {
+                submitAction = submitBtn.dataset.action;
+            }
+            
+            const formData = {
+                projectNumber: document.getElementById('projectNumber').value,
+                projectName: document.getElementById('projectName').value,
+                manager: document.getElementById('manager').value,
+                department: document.getElementById('currentDepartment').value,
+                status: document.getElementById('status').value,
+                priority: document.getElementById('priority').value,
+                requestDate: document.getElementById('requestDate').value,
+                deliveryDate: document.getElementById('deliveryDate').value,
+                notes: document.getElementById('notes').value,
+                earlyDeliveryDate: document.getElementById('earlyDeliveryDate').value,
+                earlyDeliveryNotes: document.getElementById('earlyDeliveryNotes').value,
+                requestFiles: await buildFilePayload(appState.attachedFilesRequest),
+                etcFiles: await buildFilePayload(appState.attachedFilesEtc)
+            };
+            if (!appState.currentEditId && (formData.earlyDeliveryDate || formData.earlyDeliveryNotes)) {
+                formData.earlyDeliveryMemos = [{
+                    id: Date.now().toString(),
+                    date: formData.earlyDeliveryDate || '',
+                    notes: formData.earlyDeliveryNotes || ''
+                }];
+            }
+            const isAccountingMode = !document.getElementById('accountingFormSection').classList.contains('hidden');
+            const isDesignMode = !document.getElementById('designFormSection').classList.contains('hidden');
+            const isProductionMode = !document.getElementById('productionFormSection').classList.contains('hidden');
+            if (isAccountingMode) {
+                const modelRows = Array.from(document.querySelectorAll('#accountingModelList .accounting-model-row'));
+                const models = modelRows.map(row => ({
+                    serialNumber: row.querySelector('[data-field="sn"]').value.trim(),
+                    serialNumbers: expandSerialNumbers(row.querySelector('[data-field="sn"]').value.trim()),
+                    modelName: row.querySelector('[data-field="model"]').value.trim(),
+                    quantity: row.querySelector('[data-field="qty"]').value,
+                    wpDueDate: row.querySelector('[data-field="wpDate"]').value,
+                    productDueDate: row.querySelector('[data-field="productDate"]').value,
+                    spec: row.querySelector('[data-field="spec"]').value.trim()
+                }));
+                formData.accounting = {
+                    customerName: document.getElementById('accountingCustomer').value.trim(),
+                    requestDueDate: document.getElementById('accountingRequestDate').value,
+                    wpRequestDueDate: document.getElementById('accountingWpRequestDate').value,
+                    models,
+                    memo: document.getElementById('accountingMemo').value.trim()
+                };
+            }
+            if (isDesignMode) {
+                formData.design = {
+                    memo: document.getElementById('designMemo').value.trim(),
+                    files: await buildFilePayload(appState.attachedFilesDesign)
+                };
+            }
+            if (isProductionMode) {
+                formData.production = {
+                    memo: document.getElementById('productionMemo').value.trim(),
+                    files: await buildFilePayload(appState.attachedFilesProduction)
+                };
+                if (submitAction === 'start') {
+                    formData.status = '진행중';
+                } else if (submitAction === 'complete') {
+                    formData.status = '준비 완료';
+                }
+            }
+            if (submitAction === 'aftercare') {
+                formData.aftercare = {
+                    memo: document.getElementById('aftercareMemo').value.trim(),
+                    files: await buildFilePayload(appState.attachedFilesAftercare)
+                };
+                formData.deliveryCompletedAt = document.getElementById('aftercareDeliveryDateInput').value;
+            }
+
+            if (appState.currentEditId) {
+                // 기존 프로젝트 업데이트
+                const index = appState.projects.findIndex(p => p.id === appState.currentEditId);
+                if (index !== -1) {
+                    const project = appState.projects[index];
+                    const currentStep = getCurrentWorkflowStep(project);
+                    const nextStep = document.getElementById('nextDepartment').value;
+                    const editMode = appState.editMode;
+                    formData.earlyDeliveryMemos = normalizeEarlyDeliveryMemos(project);
+                    if (isAccountingMode && editMode === 'accounting' && !submitAction) {
+                        submitAction = 'forward';
+                    }
+                    if (isDesignMode && editMode === 'design' && !submitAction && submitBtn && submitBtn.dataset.action === 'design_forward') {
+                        submitAction = 'design_forward';
+                    }
+
+                    if (editMode === 'sales') {
+                        formData.accounting = project.accounting || null;
+                        const baseRequestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
+                        const baseEtcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
+                        if (formData.requestFiles.length === 0) {
+                            formData.requestFiles = baseRequestFiles;
+                        } else {
+                            formData.requestFiles = baseRequestFiles.concat(formData.requestFiles);
+                        }
+                        if (formData.etcFiles.length === 0) {
+                            formData.etcFiles = baseEtcFiles;
+                        } else {
+                            formData.etcFiles = baseEtcFiles.concat(formData.etcFiles);
+                        }
+
+                        if (!project.workflow) project.workflow = {};
+                        project.workflow['경리'] = { completed: false, completedAt: null, completedBy: null };
+                        project.workflow['설계'] = { completed: false, completedAt: null, completedBy: null };
+                        project.workflow['생산'] = { completed: false, completedAt: null, completedBy: null };
+                        project.department = '경리';
+                        formData.department = '경리';
+                    }
+
+                    if (isDesignMode) {
+                        formData.projectNumber = project.projectNumber;
+                        formData.projectName = project.projectName;
+                        formData.manager = project.manager;
+                        formData.department = project.department;
+                        formData.status = project.status;
+                        formData.priority = project.priority;
+                        formData.requestDate = project.requestDate;
+                        formData.deliveryDate = project.deliveryDate;
+                        formData.notes = project.notes;
+                        formData.earlyDeliveryDate = project.earlyDeliveryDate || '';
+                        formData.earlyDeliveryNotes = project.earlyDeliveryNotes || '';
+                        formData.requestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
+                        formData.etcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
+                        formData.accounting = project.accounting || null;
+                        const existingDesign = project.design || { memo: '', files: [] };
+                        const nextMemo = formData.design && formData.design.memo ? formData.design.memo : existingDesign.memo;
+                        const existingDesignFiles = getExistingFilesForEdit('design', existingDesign.files || []);
+                        const nextFiles = formData.design && formData.design.files && formData.design.files.length > 0
+                            ? existingDesignFiles.concat(formData.design.files)
+                            : existingDesignFiles;
+                        formData.design = { memo: nextMemo, files: nextFiles };
+                        if (submitAction === 'design_forward') {
+                            if (!project.workflow) project.workflow = {};
+                            project.workflow['설계'] = {
+                                completed: true,
+                                completedAt: new Date().toISOString().split('T')[0],
+                                completedBy: appState.user.name
+                            };
+                            project.workflow['생산'] = { completed: false, completedAt: null, completedBy: null };
+                            project.department = '생산';
+                            formData.department = '생산';
+                            project.status = '확인중';
+                            formData.status = '확인중';
+                            if (!project.production) project.production = {};
+                            project.production.started = false;
+                            project.production.startedAt = null;
+                        }
+                    }
+                    if (isProductionMode) {
+                        formData.projectNumber = project.projectNumber;
+                        formData.projectName = project.projectName;
+                        formData.manager = project.manager;
+                        formData.department = project.department;
+                        formData.status = submitAction === 'start'
+                            ? '진행중'
+                            : (submitAction === 'complete' ? '준비 완료' : project.status);
+                        formData.priority = project.priority;
+                        formData.requestDate = project.requestDate;
+                        formData.deliveryDate = project.deliveryDate;
+                        formData.notes = project.notes;
+                        formData.earlyDeliveryDate = project.earlyDeliveryDate || '';
+                        formData.earlyDeliveryNotes = project.earlyDeliveryNotes || '';
+                        formData.requestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
+                        formData.etcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
+                        formData.accounting = project.accounting || null;
+                        formData.design = project.design
+                            ? { ...project.design, files: getExistingFilesForEdit('design', project.design.files || []) }
+                            : null;
+                        const existingProduction = project.production || { memo: '', files: [], started: false, startedAt: null };
+                        const nextMemo = formData.production && formData.production.memo ? formData.production.memo : existingProduction.memo;
+                        const existingProductionFiles = getExistingFilesForEdit('production', existingProduction.files || []);
+                        const nextFiles = formData.production && formData.production.files && formData.production.files.length > 0
+                            ? existingProductionFiles.concat(formData.production.files)
+                            : existingProductionFiles;
+                        let started = !!existingProduction.started;
+                        let startedAt = existingProduction.startedAt || null;
+                        if (submitAction === 'start') {
+                            started = true;
+                            startedAt = startedAt || new Date().toISOString().split('T')[0];
+                        }
+                        formData.production = {
+                            ...existingProduction,
+                            memo: nextMemo,
+                            files: nextFiles,
+                            started,
+                            startedAt
+                        };
+                    }
+                    if (submitAction === 'aftercare') {
+                        formData.projectNumber = project.projectNumber;
+                        formData.projectName = project.projectName;
+                        formData.manager = project.manager;
+                        formData.department = project.department;
+                        formData.status = project.status;
+                        formData.priority = project.priority;
+                        formData.requestDate = project.requestDate;
+                        formData.deliveryDate = project.deliveryDate;
+                        formData.notes = project.notes;
+                        formData.earlyDeliveryDate = project.earlyDeliveryDate || '';
+                        formData.earlyDeliveryNotes = project.earlyDeliveryNotes || '';
+                        formData.requestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
+                        formData.etcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
+                        formData.accounting = project.accounting || null;
+                        formData.design = project.design
+                            ? { ...project.design, files: getExistingFilesForEdit('design', project.design.files || []) }
+                            : null;
+                        formData.production = project.production
+                            ? { ...project.production, files: getExistingFilesForEdit('production', project.production.files || []) }
+                            : null;
+                        const existingAftercare = project.aftercare || { memo: '', files: [] };
+                        const nextMemo = formData.aftercare && formData.aftercare.memo ? formData.aftercare.memo : existingAftercare.memo;
+                        const existingAftercareFiles = getExistingFilesForEdit('aftercare', existingAftercare.files || []);
+                        const nextFiles = formData.aftercare && formData.aftercare.files && formData.aftercare.files.length > 0
+                            ? existingAftercareFiles.concat(formData.aftercare.files)
+                            : existingAftercareFiles;
+                        formData.aftercare = { memo: nextMemo, files: nextFiles };
+                        project.deliveryCompletedAt = formData.deliveryCompletedAt || project.deliveryCompletedAt;
+                    }
+                    
+                    if (isAccountingMode) {
+                        formData.projectNumber = project.projectNumber;
+                        formData.projectName = project.projectName;
+                        formData.manager = project.manager;
+                        formData.department = project.department;
+                        formData.status = project.status;
+                        formData.priority = project.priority;
+                        formData.requestDate = project.requestDate;
+                        formData.deliveryDate = project.deliveryDate;
+                        formData.notes = project.notes;
+                        formData.earlyDeliveryDate = project.earlyDeliveryDate || '';
+                        formData.earlyDeliveryNotes = project.earlyDeliveryNotes || '';
+                        formData.requestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
+                        formData.etcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
+                    }
+
+                    const isDesignEdit = editMode === 'design';
+                    const isProductionEdit = editMode === 'production';
+                    const isAccountingEdit = editMode === 'accounting';
+
+                    // 현재 단계 완료 처리 (기본 처리에서만)
+                    if (!isAccountingMode && !isDesignEdit && !isProductionEdit && editMode !== 'sales' && submitAction !== 'save' && submitAction !== 'aftercare') {
+                        if (!project.workflow) project.workflow = {};
+                        project.workflow[currentStep] = {
+                            completed: true,
+                            completedAt: new Date().toISOString().split('T')[0],
+                            completedBy: appState.user.name
+                        };
+                    }
+
+                    // 다음 단계로 이동 (기본 처리에서만)
+                    if (!isAccountingMode && !isDesignEdit && !isProductionEdit && editMode !== 'sales' && submitAction !== 'save' && submitAction !== 'aftercare') {
+                        if (nextStep) {
+                            project.department = nextStep;
+                            if (nextStep === '생산') {
+                                if (!project.production) project.production = {};
+                                project.production.started = false;
+                                project.production.startedAt = null;
+                                project.status = '확인중';
+                                formData.status = '확인중';
+                            }
+                        } else {
+                            // 최종 완료
+                            project.status = '준비 완료';
+                        }
+                    }
+                    if (isAccountingMode && submitAction === 'forward') {
+                        if (!project.workflow) project.workflow = {};
+                        project.workflow['경리'] = {
+                            completed: true,
+                            completedAt: new Date().toISOString().split('T')[0],
+                            completedBy: appState.user.name
+                        };
+                        project.department = '설계';
+                        formData.department = '설계';
+                        project.workflow['설계'] = { completed: false, completedAt: null, completedBy: null };
+                        project.workflow['생산'] = { completed: false, completedAt: null, completedBy: null };
+                        project.status = '진행중';
+                        formData.status = '진행중';
+                        if (!project.production) project.production = {};
+                        project.production.started = false;
+                        project.production.startedAt = null;
+                    }
+            if (isProductionMode && currentStep === '생산') {
+                if (submitAction === 'start') {
+                    if (!project.production) project.production = {};
+                    project.production.started = true;
+                    project.production.startedAt = project.production.startedAt || new Date().toISOString().split('T')[0];
+                    project.status = '진행중';
+                    formData.status = '진행중';
+                }
+                if (submitAction === 'complete') {
+                    if (!project.workflow) project.workflow = {};
+                    project.workflow['생산'] = {
+                        completed: true,
+                        completedAt: new Date().toISOString().split('T')[0],
+                                completedBy: appState.user.name
+                            };
+                            project.status = '준비 완료';
+                            project.department = '';
+                            formData.status = '준비 완료';
+                            formData.department = '';
+                        }
+                    }
+                    if (isDesignMode && editMode !== 'design') {
+                        formData.department = project.department;
+                    }
+
+                    if (editMode && appState.user && appState.user.department !== currentStep) {
+                        if (!project.notifications) project.notifications = {};
+                        if (!project.notifications.byDept) project.notifications.byDept = {};
+                        project.notifications.byDept[currentStep] = true;
+                        project.notifications.lastBy = appState.user.name;
+                        project.notifications.lastAt = new Date().toISOString();
+                    }
+                    if (!editMode && appState.user && appState.user.department === currentStep) {
+                        if (project.notifications && project.notifications.byDept) {
+                            project.notifications.byDept[currentStep] = false;
+                        }
+                    }
+                    
+                    appState.projects[index] = { ...project, ...formData };
+                }
+            } else {
+                // 새 프로젝트 생성 (영업부 전용)
+                const newProject = {
+                    id: Date.now().toString(),
+                    ...formData,
+                    workflow: {
+                        영업: {
+                            completed: submitAction !== 'save',
+                            completedAt: submitAction !== 'save' ? new Date().toISOString().split('T')[0] : null,
+                            completedBy: submitAction !== 'save' ? appState.user.name : null
+                        },
+                        경리: { completed: false, completedAt: null, completedBy: null },
+                        설계: { completed: false, completedAt: null, completedBy: null },
+                        생산: { completed: false, completedAt: null, completedBy: null }
+                    }
+                };
+                if (submitAction === 'save') {
+                    newProject.department = '영업';
+                }
+                appState.projects.push(newProject);
+            }
+
+            saveProjectsToStorage();
+            
+            // 현재 필터 적용
+            applyCurrentFilter();
+            
+            updateStatistics();
+            renderProjects();
+            closeProjectModal();
+        }
+
+        // 사용자 부서 설정 (데모용)
+        function setUserDepartment(department) {
+            if (appState.user) {
+                appState.user.department = department;
+            }
+        }
+
+        // 검색 처리
+        function handleSearch(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            if (searchTerm === '') {
+                // 현재 필터 유지
+                applyCurrentFilter();
+            } else {
+                // 검색어로 필터링
+                appState.filteredProjects = appState.projects.filter(project => {
+                    const baseMatch = project.projectNumber.toLowerCase().includes(searchTerm) ||
+                        project.projectName.toLowerCase().includes(searchTerm) ||
+                        project.manager.toLowerCase().includes(searchTerm);
+                    if (baseMatch) return true;
+                    const models = project.accounting && project.accounting.models ? project.accounting.models : [];
+                    return models.some(model => {
+                        const serials = getModelSerialNumbers(model);
+                        return serials.some(serial => serial.toLowerCase().includes(searchTerm));
+                    });
+                });
+            }
+            renderProjects();
+        }
+
+        // 페이지 로드 시 초기화
+        document.addEventListener('DOMContentLoaded', function() {
+            // 데모용 사용자 부서 설정
+            if (!appState.user) {
+                appState.user = { name: '데모 사용자', email: 'demo@example.com' };
+            }
+            // 기본적으로 경리부로 설정 (데모용)
+            if (TEST_MODE) {
+                appState.user.department = appState.user.department || '영업';
+            } else {
+                appState.user.department = '경리';
+            }
+            
+            init();
+        });
+
+        // 전역 함수 노출
+        window.filterByDepartment = filterByDepartment;
+        window.filterByStatus = filterByStatus;
+        window.filterByProductionStatus = filterByProductionStatus;
+        window.filterByDeliveryCompleted = filterByDeliveryCompleted;
+        window.processProject = processProject;
+        window.deleteProject = deleteProject;
+        window.openDeleteHistoryModal = openDeleteHistoryModal;
+        window.closeDeleteHistoryModal = closeDeleteHistoryModal;
+        window.purgeDeletedProject = purgeDeletedProject;
+        window.openEarlyDeliveryModal = openEarlyDeliveryModal;
+        window.deleteEarlyDeliveryMemo = deleteEarlyDeliveryMemo;
+        window.markDeliveryCompleted = markDeliveryCompleted;
+        window.cancelReadyCompletion = cancelReadyCompletion;
+        window.removeFile = removeFile;
+        window.removeExistingFile = removeExistingFile;
+        window.openNewProjectModal = openNewProjectModal;
+        window.openAccountingEdit = openAccountingEdit;
+        window.openSalesEdit = openSalesEdit;
+        window.openDesignEdit = openDesignEdit;
+        window.openAftercare = openAftercare;
+        window.openProjectView = openProjectView;
+        window.openEditDepartmentModal = openEditDepartmentModal;
+    </script>
+</body>
+</html>
