@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Apps Script 연결 테스트</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    .log {
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+      font-family: monospace;
+      white-space: pre-wrap;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    button {
+      background: #4285f4;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background: #357ae8;
+    }
+    .success {
+      color: green;
+      font-weight: bold;
+    }
+    .error {
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Apps Script 연결 테스트</h1>
+  
+  <div>
+    <button onclick="testLoadAll()">1. LoadAll 테스트</button>
+    <button onclick="testSyncAll()">2. SyncAll 테스트</button>
+    <button onclick="clearLog()">로그 지우기</button>
+  </div>
+  
+  <h2>실행 로그:</h2>
+  <div id="log" class="log">대기 중...</div>
+
+  <script>
+    // ⚠️ 여기에 실제 배포 URL을 입력하세요
+    const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbz_9Q9w2imjMHf_VsX7F61TvGNqNJPN5cpcpPKHkmysot2ZxER97Co59EhO-ty1TFeAMQ/exec';
+
+    function addLog(message, type = 'info') {
+      const logDiv = document.getElementById('log');
+      const timestamp = new Date().toLocaleTimeString();
+      const className = type === 'success' ? 'success' : type === 'error' ? 'error' : '';
+      logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function clearLog() {
+      document.getElementById('log').innerHTML = '로그가 지워졌습니다.';
+    }
+
+    async function testLoadAll() {
+      addLog('📥 LoadAll 요청 시작...');
+      
+      try {
+        const response = await fetch(WEB_APP_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'loadAll'
+          })
+        });
+
+        addLog(`HTTP 상태: ${response.status} ${response.statusText}`);
+
+        const data = await response.json();
+        
+        if (data.success) {
+          addLog('✅ 성공!', 'success');
+          addLog(`프로젝트 수: ${data.data.projects.length}개`);
+          addLog(`삭제된 프로젝트: ${data.data.deletedProjects.length}개`);
+          addLog('응답 데이터:\n' + JSON.stringify(data, null, 2));
+        } else {
+          addLog('❌ 실패: ' + data.error, 'error');
+        }
+      } catch (error) {
+        addLog('❌ 네트워크 에러: ' + error.message, 'error');
+        console.error(error);
+      }
+    }
+
+    async function testSyncAll() {
+      addLog('📤 SyncAll 요청 시작 (테스트 프로젝트 생성)...');
+      
+      const testProject = {
+        projectNumber: 'TEST-001',
+        projectName: '테스트 프로젝트',
+        manager: '홍길동',
+        department: '영업',
+        status: '진행중',
+        priority: '높음',
+        requestDate: new Date().toISOString().split('T')[0],
+        deliveryDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        notes: 'Apps Script 연동 테스트',
+        workflow: {
+          accounting: { completed: false },
+          design: { completed: false },
+          production: { completed: false },
+          aftercare: { completed: false }
+        },
+        requestFiles: [],
+        etcFiles: []
+      };
+
+      try {
+        const response = await fetch(WEB_APP_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'syncAll',
+            projects: [testProject],
+            deletedProjects: [],
+            user: { name: '테스터' }
+          })
+        });
+
+        addLog(`HTTP 상태: ${response.status} ${response.statusText}`);
+
+        const data = await response.json();
+        
+        if (data.success) {
+          addLog('✅ 성공!', 'success');
+          addLog(`동기화된 프로젝트: ${data.data.projects.length}개`);
+          addLog('응답 데이터:\n' + JSON.stringify(data, null, 2));
+          addLog('📊 이제 Google Sheets를 확인하세요!', 'success');
+        } else {
+          addLog('❌ 실패: ' + data.error, 'error');
+        }
+      } catch (error) {
+        addLog('❌ 네트워크 에러: ' + error.message, 'error');
+        console.error(error);
+      }
+    }
+
+    // 페이지 로드 시 URL 확인
+    window.onload = function() {
+      addLog('🚀 테스트 페이지 로드 완료');
+      addLog('Apps Script URL: ' + WEB_APP_URL);
+      addLog('위의 버튼을 눌러 테스트하세요.');
+    };
+  </script>
+</body>
+</html>
