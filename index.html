@@ -451,29 +451,32 @@
 
                         <div class="grid grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">납기요청일 *</label>
-                                <input type="date" id="accountingRequestDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            </div>
-                            <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">W/P 납기요청일</label>
                                 <input type="date" id="accountingWpRequestDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">납기요청일 *</label>
+                                <input type="date" id="accountingRequestDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
                         </div>
 
                         <div>
                             <div class="flex justify-between items-center mb-2">
                                 <label class="block text-sm font-medium text-gray-700">모델 정보 *</label>
-                                <button type="button" id="addModelRowBtn" class="text-sm text-blue-600 hover:text-blue-700">+ 모델 추가</button>
                             </div>
                             <div id="accountingModelList" class="space-y-4">
                                 <div class="accounting-model-row space-y-3 border border-gray-200 rounded-md p-4">
                                     <div class="flex justify-end">
                                         <button type="button" class="remove-model-row text-xs text-red-600 hover:text-red-700">삭제</button>
                                     </div>
-                                    <div class="grid grid-cols-3 gap-4">
+                                    <div class="grid grid-cols-4 gap-4">
                                         <div>
                                             <label class="block text-xs font-medium text-gray-500 mb-1">S/N</label>
                                             <input type="text" data-field="sn" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-medium text-gray-500 mb-1">W/P Serial No</label>
+                                            <input type="text" data-field="wpSerial" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                                         </div>
                                         <div>
                                             <label class="block text-xs font-medium text-gray-500 mb-1">모델(MODEL)</label>
@@ -499,6 +502,9 @@
                                         <textarea data-field="spec" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                                     </div>
                                 </div>
+                            </div>
+                            <div class="mt-3 flex justify-end">
+                                <button type="button" id="addModelRowBtn" class="text-sm text-blue-600 hover:text-blue-700">+ 모델 추가</button>
                             </div>
                         </div>
 
@@ -729,7 +735,8 @@
                                     <option value="">선택하세요</option>
                                 </select>
                             </div>
-                            <div class="flex space-x-3">
+                            <div class="flex space-x-3 items-center">
+                                <span id="submitStatus" class="text-xs text-blue-600 hidden">제출 중...</span>
                                 <button type="button" id="cancelBtn" class="px-6 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors">
                                     취소
                                 </button>
@@ -917,6 +924,7 @@
             attachedFilesDesign: [],
             attachedFilesProduction: [],
             attachedFilesAftercare: [],
+            isSubmitting: false,
             existingFiles: {
                 request: [],
                 etc: [],
@@ -1275,6 +1283,22 @@
             renderFileList('aftercare');
         }
 
+        function setSubmitUi(isSubmitting) {
+            const submitStatus = document.getElementById('submitStatus');
+            const submitBtn = document.getElementById('submitBtn');
+            if (submitStatus) {
+                submitStatus.classList.toggle('hidden', !isSubmitting);
+            }
+            if (submitBtn) {
+                if (isSubmitting) {
+                    submitBtn.dataset.originalText = submitBtn.textContent;
+                    submitBtn.textContent = '제출 중...';
+                } else if (submitBtn.dataset.originalText) {
+                    submitBtn.textContent = submitBtn.dataset.originalText;
+                }
+            }
+        }
+
         function renderFileSummary(container, files, options = {}) {
             if (!container) return;
             const allowRemove = !!(options && options.allowRemove && options.type);
@@ -1282,6 +1306,25 @@
             if (!displayFiles || displayFiles.length === 0) {
                 container.innerHTML = '<div class="text-xs text-gray-400">첨부된 파일이 없습니다</div>';
                 return;
+            }
+            if (initFirebase() && firebaseStorage) {
+                displayFiles.forEach(file => {
+                    if (file && file.storagePath && !file.downloadUrl && !file._linkLoading) {
+                        file._linkLoading = true;
+                        firebaseStorage
+                            .ref()
+                            .child(file.storagePath)
+                            .getDownloadURL()
+                            .then(url => {
+                                file.downloadUrl = url;
+                                file._linkLoading = false;
+                                renderFileSummary(container, displayFiles, options);
+                            })
+                            .catch(() => {
+                                file._linkLoading = false;
+                            });
+                    }
+                });
             }
             container.innerHTML = displayFiles.map((file, index) => `
                 <div class="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-md">
@@ -1324,10 +1367,14 @@
                 <div class="flex justify-end">
                     <button type="button" class="remove-model-row text-xs text-red-600 hover:text-red-700">삭제</button>
                 </div>
-                <div class="grid grid-cols-3 gap-4">
+                <div class="grid grid-cols-4 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-500 mb-1">S/N</label>
                         <input type="text" data-field="sn" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">W/P Serial No</label>
+                        <input type="text" data-field="wpSerial" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-500 mb-1">모델(MODEL)</label>
@@ -1357,6 +1404,7 @@
 
             if (data) {
                 wrapper.querySelector('[data-field="sn"]').value = data.serialNumber || '';
+                wrapper.querySelector('[data-field="wpSerial"]').value = data.wpSerialNumber || '';
                 wrapper.querySelector('[data-field="model"]').value = data.modelName || '';
                 wrapper.querySelector('[data-field="qty"]').value = data.quantity || '';
                 wrapper.querySelector('[data-field="wpDate"]').value = data.wpDueDate || '';
@@ -1439,6 +1487,7 @@
             container.innerHTML = project.accounting.models.map(model => {
                 const parts = [
                     model.serialNumber && `S/N ${model.serialNumber}`,
+                    model.wpSerialNumber && `W/P S/N ${model.wpSerialNumber}`,
                     model.modelName && `모델 ${model.modelName}`,
                     model.quantity && `수량 ${model.quantity}`,
                     model.wpDueDate && `W/P ${model.wpDueDate}`,
@@ -1466,6 +1515,7 @@
                 container.innerHTML = project.accounting.models.map(model => {
                     const parts = [
                         model.serialNumber && `S/N ${model.serialNumber}`,
+                    model.wpSerialNumber && `W/P S/N ${model.wpSerialNumber}`,
                         model.modelName && `모델 ${model.modelName}`,
                         model.quantity && `수량 ${model.quantity}`,
                         model.wpDueDate && `W/P ${model.wpDueDate}`,
@@ -1536,6 +1586,7 @@
                 container.innerHTML = project.accounting.models.map(model => {
                     const parts = [
                         model.serialNumber && `S/N ${model.serialNumber}`,
+                    model.wpSerialNumber && `W/P S/N ${model.wpSerialNumber}`,
                         model.modelName && `모델 ${model.modelName}`,
                         model.quantity && `수량 ${model.quantity}`,
                         model.wpDueDate && `W/P ${model.wpDueDate}`,
@@ -2965,6 +3016,23 @@
         // 프로젝트 저장
         async function handleProjectSubmit(e) {
             e.preventDefault();
+            if (appState.isSubmitting) return;
+            appState.isSubmitting = true;
+            setSubmitUi(true);
+            const submitButtons = [
+                'submitBtn',
+                'saveBtn',
+                'accountingSaveBtn',
+                'accountingSubmitBtn',
+                'productionSaveBtn',
+                'productionCompleteBtn',
+                'aftercareSaveBtn'
+            ];
+            submitButtons.forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.disabled = true;
+            });
+            try {
             ensureTestUser(document.getElementById('currentDepartment').value);
             updateProjectNumber();
             let submitAction = appState.submitAction;
@@ -3007,6 +3075,7 @@
                 const modelRows = Array.from(document.querySelectorAll('#accountingModelList .accounting-model-row'));
                 const models = modelRows.map(row => ({
                     serialNumber: row.querySelector('[data-field="sn"]').value.trim(),
+                    wpSerialNumber: row.querySelector('[data-field="wpSerial"]').value.trim(),
                     serialNumbers: expandSerialNumbers(row.querySelector('[data-field="sn"]').value.trim()),
                     modelName: row.querySelector('[data-field="model"]').value.trim(),
                     quantity: row.querySelector('[data-field="qty"]').value,
@@ -3308,6 +3377,11 @@
                 }
             } else {
                 // 새 프로젝트 생성 (영업부 전용)
+                const duplicate = appState.projects.some(project => project.projectNumber === formData.projectNumber);
+                if (duplicate) {
+                    alert('Duplicate project number.');
+                    return;
+                }
                 const newProject = {
                     id: projectId,
                     ...formData,
@@ -3336,6 +3410,14 @@
             updateStatistics();
             renderProjects();
             closeProjectModal();
+            } finally {
+                appState.isSubmitting = false;
+                setSubmitUi(false);
+                submitButtons.forEach(id => {
+                    const btn = document.getElementById(id);
+                    if (btn) btn.disabled = false;
+                });
+            }
         }
 
         // 사용자 부서 설정 (데모용)
