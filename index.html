@@ -90,6 +90,24 @@
             background: #e2e8f0;
             color: #718096;
         }
+        .mobile-home-btn {
+            position: fixed;
+            right: 16px;
+            bottom: 16px;
+            width: 52px;
+            height: 52px;
+            border-radius: 9999px;
+            background: #2563eb;
+            color: #ffffff;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+            z-index: 60;
+        }
+        .mobile-home-btn:hover {
+            background: #1d4ed8;
+        }
         @media (max-width: 640px) {
             .mobile-card-table,
             .mobile-card-table tbody,
@@ -130,6 +148,9 @@
             .mobile-actions {
                 width: 100%;
                 justify-content: flex-start;
+            }
+            .mobile-home-btn {
+                display: flex;
             }
         }
     </style>
@@ -301,7 +322,7 @@
                     <!-- 프로젝트 관리 화면 -->
                     <div id="projectManagement" class="hidden">
                         <!-- 프로젝트 목록 -->
-                        <div class="bg-white rounded-lg shadow">
+                        <div id="projectListCard" class="bg-white rounded-lg shadow">
                             <div class="px-6 py-4 border-b border-gray-200">
                                 <div class="flex justify-between items-center">
                                     <h3 class="text-lg font-medium text-gray-900">프로젝트 목록</h3>
@@ -336,6 +357,12 @@
         </div>
 
         <!-- 프로젝트 처리 모달 -->
+        <button id="mobileHomeBtn" class="mobile-home-btn" type="button" aria-label="홈으로 이동">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5a1 1 0 01-1-1v-4H10v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-9.5z"></path>
+            </svg>
+        </button>
+
         <div id="projectModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
             <div class="relative top-20 mx-auto p-5 border w-full max-w-4xl bg-white rounded-lg shadow-lg">
                 <div class="flex justify-between items-center mb-4">
@@ -1214,6 +1241,10 @@
             if (saveEarlyDeliveryModal) {
                 saveEarlyDeliveryModal.addEventListener('click', saveEarlyDeliveryMemo);
             }
+            const mobileHomeBtn = document.getElementById('mobileHomeBtn');
+            if (mobileHomeBtn) {
+                mobileHomeBtn.addEventListener('click', goToMobileHome);
+            }
             
             // 파일 관련 이벤트
             bindFileZone('fileDropZoneRequest', 'fileInputRequest', 'request');
@@ -1281,6 +1312,30 @@
                 viewSection.classList.add('hidden');
                 if (nextStepSection) nextStepSection.classList.remove('hidden');
             }
+        }
+
+        function isMobileView() {
+            return window.matchMedia('(max-width: 640px)').matches;
+        }
+
+        function focusProjectList() {
+            if (!isMobileView()) return;
+            const target = document.getElementById('projectListCard');
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        function goToMobileHome() {
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.value = '';
+            }
+            appState.currentFilter = 'all';
+            appState.filteredProjects = [...appState.projects];
+            updateStatistics();
+            renderProjects();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
         function submitProjectForm(action, options = {}) {
@@ -2081,6 +2136,7 @@
             appState.filteredProjects = [...appState.projects];
             updateStatistics();
             renderProjects();
+            focusProjectList();
         }
 
         async function loadDeletedProjects() {
@@ -2152,6 +2208,7 @@
             applyCurrentFilter();
             updateStatistics();
             renderProjects();
+            focusProjectList();
         }
 
         function purgeDeletedProject(projectId) {
@@ -2232,6 +2289,7 @@
             applyCurrentFilter();
             updateStatistics();
             renderProjects();
+            focusProjectList();
         }
 
         function cancelReadyCompletion(projectId) {
@@ -2254,6 +2312,7 @@
             applyCurrentFilter();
             updateStatistics();
             renderProjects();
+            focusProjectList();
         }
 
         // 프로젝트를 로컬 스토리지에 저장
@@ -2634,6 +2693,7 @@
                 return !isProjectClosed(project) && currentStep === department;
             });
             renderProjects();
+            focusProjectList();
         }
 
         // 상태별 필터링
