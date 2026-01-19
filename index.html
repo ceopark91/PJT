@@ -90,15 +90,57 @@
             background: #e2e8f0;
             color: #718096;
         }
+        @media (max-width: 640px) {
+            .mobile-card-table,
+            .mobile-card-table tbody,
+            .mobile-card-table tr,
+            .mobile-card-table td {
+                display: block;
+                width: 100%;
+            }
+            .mobile-card-table thead {
+                display: none;
+            }
+            .mobile-card-table tr {
+                margin: 0 0 0.75rem 0;
+                padding: 0.75rem;
+                border: 1px solid #e5e7eb;
+                border-radius: 0.75rem;
+                background: #ffffff;
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+            }
+            .mobile-card-table td {
+                padding: 0.5rem 0;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 0.75rem;
+                border-bottom: 1px dashed #e5e7eb;
+            }
+            .mobile-card-table td:last-child {
+                border-bottom: none;
+            }
+            .mobile-card-table td::before {
+                content: attr(data-label);
+                font-size: 0.75rem;
+                font-weight: 600;
+                color: #6b7280;
+                letter-spacing: 0.02em;
+            }
+            .mobile-actions {
+                width: 100%;
+                justify-content: flex-start;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50">
     <div id="root">
-        <div class="min-h-screen bg-gray-50 flex">
+        <div class="min-h-screen bg-gray-50 flex flex-col lg:flex-row">
             <!-- 사이드바 -->
-            <aside class="w-80 bg-white shadow-lg border-r border-gray-200 flex flex-col">
+            <aside class="w-full lg:w-80 bg-white shadow-lg flex flex-col border-b border-gray-200 lg:border-b-0 lg:border-r lg:sticky lg:top-0">
                 <!-- 헤더 -->
-                <div class="p-6 border-b border-gray-200">
+                <div class="p-4 sm:p-6 border-b border-gray-200">
                     <h1 class="text-xl font-bold text-gray-900 mb-2">제조 프로젝트 관리</h1>
                     <button id="addProjectBtn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
                         <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -109,13 +151,13 @@
                 </div>
 
                 <!-- 검색 -->
-                <div class="p-4 border-b border-gray-200">
+                <div class="p-3 sm:p-4 border-b border-gray-200">
                     <input type="text" id="searchInput" placeholder="프로젝트 검색..." 
                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
 
                 <!-- 업무 흐름 -->
-                <div class="p-4 border-b border-gray-200">
+                <div class="p-3 sm:p-4 border-b border-gray-200">
                     <h3 class="text-sm font-medium text-gray-700 mb-3">업무 흐름</h3>
                     <div class="space-y-2">
                         <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByStatus('all')">
@@ -135,7 +177,7 @@
                             <span id="countDesign" class="px-2 py-1 text-xs font-medium bg-purple-100 text-purple-800 rounded-full status-badge">0</span>
                         </div>
                         <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByProductionStatus('production_pending')">
-                            <span class="text-sm text-gray-600">생산 미확인</span>
+                            <span class="text-sm text-gray-600">생산 확인중</span>
                             <span id="countProductionPending" class="px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 rounded-full status-badge">0</span>
                         </div>
                         <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByProductionStatus('production_in_progress')">
@@ -154,14 +196,22 @@
                 </div>
 
                 <!-- 통계 카드 -->
-                <div class="p-4">
+                <div class="p-3 sm:p-4">
                     <h3 class="text-sm font-medium text-gray-700 mb-3">통계</h3>
                     <div class="sidebar-card rounded-lg p-4 text-white">
                         <div class="text-center">
                             <div class="text-2xl font-bold" id="totalProjects">0</div>
                             <div class="text-sm opacity-90">전체 프로젝트</div>
                         </div>
-                        <div class="mt-4 grid grid-cols-3 gap-2 text-xs">
+                        <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                            <div class="text-center">
+                                <div class="font-semibold" id="receptionCount">0</div>
+                                <div class="opacity-90">접수중</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-semibold" id="reviewCount">0</div>
+                                <div class="opacity-90">확인중</div>
+                            </div>
                             <div class="text-center">
                                 <div class="font-semibold" id="inProgressCount">0</div>
                                 <div class="opacity-90">진행중</div>
@@ -182,7 +232,7 @@
                 </div>
 
                 <!-- Firebase 로그인 상태 -->
-                <div class="mt-auto p-4 border-t border-gray-200">
+                <div class="mt-auto p-3 sm:p-4 border-t border-gray-200">
                     <div id="userInfo" class="text-sm text-gray-600 mb-3"></div>
                     <button id="googleSignIn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors mb-2">
                         Firebase 로그인
@@ -197,11 +247,11 @@
             <main class="flex-1">
                 <!-- 헤더 -->
                 <header class="bg-white shadow-sm border-b">
-                    <div class="max-w-7xl mx-auto px-6 py-4">
-                        <div class="flex justify-between items-center">
+                    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+                        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <h2 class="text-2xl font-bold text-gray-900">프로젝트 현황판</h2>
-                                <p class="text-gray-600">실시간 프로젝트 진행 상황을 확인하세요</p>
+                                <h2 class="text-lg sm:text-2xl font-bold text-gray-900">프로젝트 현황판</h2>
+                                <p class="text-sm sm:text-base text-gray-600">실시간 프로젝트 진행 상황을 확인하세요</p>
                             </div>
                             <div class="flex items-center space-x-4">
                                 <div class="text-right">
@@ -214,7 +264,7 @@
                 </header>
 
                 <!-- 메인 콘텐츠 영역 -->
-                <div class="p-6">
+                <div class="p-4 sm:p-6">
                     <!-- 로딩 상태 -->
                     <div id="loadingState" class="hidden">
                         <div class="flex justify-center items-center h-64">
@@ -262,7 +312,7 @@
                             </div>
                             
                             <div class="overflow-x-auto">
-                                <table class="min-w-full divide-y divide-gray-200">
+                                <table class="min-w-full divide-y divide-gray-200 mobile-card-table">
                                     <thead class="bg-gray-50">
                                         <tr>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">프로젝트 번호</th>
@@ -314,7 +364,7 @@
                             <div class="text-xs font-medium">생산 확인중</div>
                         </div>
                         <div class="workflow-step text-center px-4 py-2 rounded-lg workflow-pending" data-step="production_in_progress">
-                            <div class="text-xs font-medium">생산중</div>
+                            <div class="text-xs font-medium">생산 진행중</div>
                         </div>
                         <div class="workflow-step text-center px-4 py-2 rounded-lg workflow-pending" data-step="ready">
                             <div class="text-xs font-medium">준비완료</div>
@@ -327,7 +377,7 @@
                 
                 <form id="projectForm" class="space-y-6">
                     <div id="defaultFormSection" class="space-y-6">
-                        <div class="grid grid-cols-3 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">프로젝트 번호</label>
                             <input type="text" id="projectNumber" readonly class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
@@ -342,7 +392,7 @@
                         </div>
                         </div>
                     
-                        <div class="grid grid-cols-3 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">담당자</label>
                             <input type="text" id="manager" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -350,7 +400,7 @@
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">상태</label>
                             <select id="status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <option value="진행중">진행중</option>
+                                <option value="진행중">접수중</option>
                                 <option value="준비 완료">준비 완료</option>
                                 <option value="보류">보류</option>
                             </select>
@@ -365,7 +415,7 @@
                         </div>
                         </div>
                     
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">요청일</label>
                             <input type="date" id="requestDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -415,15 +465,15 @@
 
                         <div class="border border-gray-200 rounded-md p-4 space-y-3">
                         <div class="flex items-center justify-between">
-                            <label class="block text-sm font-medium text-gray-700">조기 구성품 납기 메모</label>
+                            <label class="block text-sm font-medium text-gray-700">납품전 특이사항</label>
                             <div class="flex items-center space-x-2 text-sm text-gray-500">
                                 <span>일자</span>
                                 <input type="date" id="earlyDeliveryDate" class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                             </div>
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-gray-500 mb-1">조기 납품 목록</label>
-                            <textarea id="earlyDeliveryNotes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="조기 납품 대상 구성품을 입력하세요"></textarea>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">납품전 특이사항</label>
+                            <textarea id="earlyDeliveryNotes" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="납품전 특이사항을 입력하세요"></textarea>
                         </div>
                         </div>
                     </div>
@@ -449,7 +499,7 @@
                             <input type="text" id="accountingCustomer" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                         </div>
 
-                        <div class="grid grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 mb-1">W/P 납기요청일</label>
                                 <input type="date" id="accountingWpRequestDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -487,7 +537,7 @@
                                             <input type="number" data-field="qty" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                                         </div>
                                     </div>
-                                    <div class="grid grid-cols-2 gap-4">
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div>
                                             <label class="block text-xs font-medium text-gray-500 mb-1">W/P 납기일</label>
                                             <input type="date" data-field="wpDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -588,7 +638,7 @@
                             <div id="productionSalesNotes" class="text-sm text-gray-600 whitespace-pre-wrap"></div>
                         </div>
                         <div class="bg-gray-50 rounded-md p-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">조기 구성품 납기 메모</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">납품전 특이사항</label>
                             <div id="productionEarlyDeliveryList" class="space-y-2 text-sm text-gray-600"></div>
                         </div>
 
@@ -690,7 +740,7 @@
                             <div id="viewSalesNotes" class="text-sm text-gray-600 whitespace-pre-wrap"></div>
                         </div>
                         <div class="border border-gray-200 rounded-md p-4">
-                            <h4 class="text-sm font-medium text-gray-700 mb-2">조기 구성품 납기 메모</h4>
+                            <h4 class="text-sm font-medium text-gray-700 mb-2">납품전 특이사항</h4>
                             <div id="viewEarlyDeliveryList" class="space-y-2 text-sm text-gray-600"></div>
                         </div>
 
@@ -756,7 +806,7 @@
         <div id="earlyDeliveryModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
             <div class="relative top-24 mx-auto p-6 border w-full max-w-lg bg-white rounded-lg shadow-lg">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-medium text-gray-900">조기 구성품 납기 메모</h3>
+                    <h3 class="text-lg font-medium text-gray-900">납품전 특이사항</h3>
                     <button id="closeEarlyDeliveryModal" class="text-gray-400 hover:text-gray-600">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -769,7 +819,7 @@
                         <input type="date" id="earlyDeliveryModalDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">조기 납품 목록</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">납품전 특이사항</label>
                         <textarea id="earlyDeliveryModalNotes" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
                     </div>
                 </div>
@@ -1001,6 +1051,9 @@
             }
             if (!appState.user.department) {
                 appState.user.department = defaultDepartment || '영업';
+                if (appState.isLoggedIn) {
+                    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(appState.user));
+                }
             }
         }
 
@@ -1045,10 +1098,12 @@
         // 자동 로그인 (데모용)
         function autoLogin() {
             appState.isLoggedIn = true;
-            appState.user = {
-                name: '데모 사용자',
-                email: 'demo@example.com'
-            };
+            if (!appState.user) {
+                appState.user = {
+                    name: '데모 사용자',
+                    email: 'demo@example.com'
+                };
+            }
             updateUI();
         }
 
@@ -1299,6 +1354,17 @@
             }
         }
 
+        function setSubmitStatusMessage(message) {
+            const submitStatus = document.getElementById('submitStatus');
+            if (!submitStatus) return;
+            if (message) {
+                submitStatus.textContent = message;
+                submitStatus.classList.remove('hidden');
+            } else {
+                submitStatus.textContent = '제출 중...';
+            }
+        }
+
         function renderFileSummary(container, files, options = {}) {
             if (!container) return;
             const allowRemove = !!(options && options.allowRemove && options.type);
@@ -1385,7 +1451,7 @@
                         <input type="number" data-field="qty" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </div>
                 </div>
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-500 mb-1">W/P 납기일</label>
                         <input type="date" data-field="wpDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -1572,7 +1638,7 @@
                         ${options.allowDelete ? `<button type="button" class="text-xs text-red-600 hover:text-red-700" onclick="deleteEarlyDeliveryMemo('${project.id}', ${index})">삭제</button>` : ''}
                     </div>
                     <div class="text-sm text-gray-700 mt-1">${memo.date || '미기록'}</div>
-                    <div class="mt-2 text-xs text-gray-500">조기 납품 목록</div>
+                    <div class="mt-2 text-xs text-gray-500">납품전 특이사항</div>
                     <div class="text-sm text-gray-700 whitespace-pre-wrap">${memo.notes || '메모가 없습니다.'}</div>
                 </div>
             `).join('');
@@ -2144,7 +2210,7 @@
         function deleteEarlyDeliveryMemo(projectId, index) {
             const project = appState.projects.find(p => p.id === projectId);
             if (!project) return;
-            if (!confirm('조기 납품 메모를 삭제할까요?')) return;
+            if (!confirm('납품전 메모를 삭제할까요?')) return;
             const memos = normalizeEarlyDeliveryMemos(project);
             if (index < 0 || index >= memos.length) return;
             memos.splice(index, 1);
@@ -2203,10 +2269,48 @@
         let syncInFlight = false;
         let syncPending = false;
 
+        function waitForSyncCompletion() {
+            return new Promise(resolve => {
+                if (!syncInFlight) {
+                    resolve();
+                    return;
+                }
+                const check = () => {
+                    if (!syncInFlight) {
+                        resolve();
+                    } else {
+                        setTimeout(check, 100);
+                    }
+                };
+                check();
+            });
+        }
+
         function queueSyncToFirebase() {
             syncPending = true;
             if (syncTimer) clearTimeout(syncTimer);
             syncTimer = setTimeout(syncProjectsToFirebase, 400);
+        }
+
+        async function flushSyncToFirebase() {
+            if (!initFirebase()) return;
+            if (syncTimer) {
+                clearTimeout(syncTimer);
+                syncTimer = null;
+            }
+            if (syncInFlight) {
+                await waitForSyncCompletion();
+            }
+            if (syncPending) {
+                await syncProjectsToFirebase();
+            } else {
+                await syncProjectsToFirebase();
+            }
+            await waitForSyncCompletion();
+            if (syncPending) {
+                await syncProjectsToFirebase();
+                await waitForSyncCompletion();
+            }
         }
 
         async function syncProjectsToFirebase() {
@@ -2315,7 +2419,6 @@
         // 통계 업데이트
         function updateStatistics() {
             const total = appState.projects.length;
-            const inProgress = appState.projects.filter(p => p.status === '진행중' || p.status === '확인중').length;
             const readyCompleted = appState.projects.filter(p => isReadyCompleted(p)).length;
             const deliveryCompleted = appState.projects.filter(p => isDeliveryCompleted(p)).length;
             const completed = readyCompleted + deliveryCompleted;
@@ -2326,6 +2429,8 @@
             const designCount = pendingProjects.filter(p => getCurrentWorkflowStep(p) === '설계').length;
             const productionPendingCount = pendingProjects.filter(p => getCurrentWorkflowStep(p) === '생산' && !isProductionStarted(p)).length;
             const productionInProgressCount = pendingProjects.filter(p => getCurrentWorkflowStep(p) === '생산' && isProductionStarted(p)).length;
+            const receptionCount = pendingProjects.filter(p => p.status === '진행중' && getCurrentWorkflowStep(p) !== '생산').length;
+            const reviewCount = productionPendingCount;
 
             // 통계 업데이트
             document.getElementById('countAll').textContent = total;
@@ -2339,7 +2444,9 @@
 
             // 통계 카드 업데이트
             document.getElementById('totalProjects').textContent = total;
-            document.getElementById('inProgressCount').textContent = inProgress;
+            document.getElementById('receptionCount').textContent = receptionCount;
+            document.getElementById('reviewCount').textContent = reviewCount;
+            document.getElementById('inProgressCount').textContent = productionInProgressCount;
             document.getElementById('completedCount').textContent = readyCompleted;
             document.getElementById('deliveryCompletedCount').textContent = deliveryCompleted;
 
@@ -2352,9 +2459,17 @@
             const tableBody = document.getElementById('projectTableBody');
             const filteredCount = document.getElementById('filteredCount');
             
-            filteredCount.textContent = `총 ${appState.filteredProjects.length}개`;
+            const totalCount = appState.filteredProjects.length;
+            const isMobile = window.matchMedia('(max-width: 640px)').matches;
+            const pageLimit = isMobile ? 5 : 30;
+            const visibleProjects = appState.filteredProjects.slice(0, pageLimit);
+            const visibleCount = visibleProjects.length;
+
+            filteredCount.textContent = totalCount > visibleCount
+                ? `총 ${totalCount}개 중 ${visibleCount}개 표시`
+                : `총 ${totalCount}개`;
             
-            tableBody.innerHTML = appState.filteredProjects.map(project => {
+            tableBody.innerHTML = visibleProjects.map(project => {
                 const currentWorkflowStep = getCurrentWorkflowStep(project);
                 const userDept = appState.user && appState.user.department;
                 const isMaster = userDept === '마스터';
@@ -2364,18 +2479,23 @@
             const isProductionStep = currentWorkflowStep === '생산';
             const productionStarted = isProductionStarted(project);
             const departmentLabel = isProductionStep && !isProjectClosed(project)
-                ? (productionStarted ? '생산 (진행중)' : '생산 (미확인)')
+                ? (productionStarted ? '생산 (진행중)' : '생산 (확인중)')
                 : currentWorkflowStep;
+            const readyCompleted = isReadyCompleted(project);
             const statusText = isDeliveryCompleted(project)
                 ? '납품 완료'
-                : (isProductionStep && !productionStarted ? '생산 확인중' : (project.status === '완료' ? '준비 완료' : project.status));
+                : (readyCompleted
+                    ? '준비 완료'
+                    : (isProductionStep
+                        ? (productionStarted ? '생산 진행중' : '생산 확인중')
+                        : (project.status === '진행중' ? '접수중' : project.status)));
             return `
                     <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium text-gray-900 sm:whitespace-nowrap" data-label="번호">
                             <button class="text-blue-600 hover:text-blue-700 underline" onclick="openProjectView('${project.id}')">${project.projectNumber}</button>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${project.projectName}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-900 sm:whitespace-nowrap" data-label="프로젝트명">${project.projectName}</td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-500 sm:whitespace-nowrap" data-label="부서">
                             ${
                                 isProjectClosed(project) ? 
                                 `<span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600">-</span>` :
@@ -2387,46 +2507,50 @@
                                 }">${departmentLabel}</span>`
                             }
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-500 sm:whitespace-nowrap" data-label="상태">
                             <span class="px-2 py-1 text-xs font-medium rounded-full ${
                                 statusText === '생산 확인중' ? 'bg-blue-100 text-blue-800' :
-                                statusText === '진행중' ? 'bg-yellow-100 text-yellow-800' :
+                                statusText === '확인중' ? 'bg-blue-100 text-blue-800' :
+                                statusText === '생산 진행중' ? 'bg-orange-100 text-orange-800' :
+                                statusText === '접수중' ? 'bg-yellow-100 text-yellow-800' :
                                 statusText === '준비 완료' ? 'bg-green-100 text-green-800' :
                                 statusText === '납품 완료' ? 'bg-emerald-100 text-emerald-800' :
                                 'bg-red-100 text-red-800'
                             }">${statusText}</span>
                         </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${project.manager}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${project.requestDate}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-500 sm:whitespace-nowrap" data-label="담당자">${project.manager}</td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-500 sm:whitespace-nowrap" data-label="요청일">${project.requestDate}</td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium" data-label="작업">
+                            <div class="flex flex-wrap gap-2 justify-start mobile-actions">
                             ${isReadyCompleted(project) ? 
-                                `<button onclick="cancelReadyCompletion('${project.id}')" class="bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition-colors ml-2">준비완료 취소</button>
-                                 <button onclick="markDeliveryCompleted('${project.id}')" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700 transition-colors ml-2">납품 완료</button>` :
+                                `<button onclick="cancelReadyCompletion('${project.id}')" class="bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition-colors">준비완료 취소</button>
+                                 <button onclick="markDeliveryCompleted('${project.id}')" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700 transition-colors">납품 완료</button>` :
                                 ''
                             }
                             ${isDeliveryCompleted(project) ? 
-                                `<button onclick="openAftercare('${project.id}')" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700 transition-colors ml-2">메모추가</button>` :
+                                `<button onclick="openAftercare('${project.id}')" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700 transition-colors">메모추가</button>` :
                                 ''
                             }
                             ${!isProjectClosed(project) ? 
-                                `<button onclick="deleteProject('${project.id}')" class="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700 transition-colors ml-2">삭제</button>` :
+                                `<button onclick="deleteProject('${project.id}')" class="bg-red-600 text-white px-3 py-1 rounded text-xs hover:bg-red-700 transition-colors">삭제</button>` :
                                 ''
                             }
-                            ${!isDeliveryCompleted(project) ? `<button onclick="openEarlyDeliveryModal('${project.id}')" class="bg-teal-600 text-white px-3 py-1 rounded text-xs hover:bg-teal-700 transition-colors ml-2">조기납품 메모</button>` : ''}
+                            ${!isDeliveryCompleted(project) ? `<button onclick="openEarlyDeliveryModal('${project.id}')" class="bg-teal-600 text-white px-3 py-1 rounded text-xs hover:bg-teal-700 transition-colors">납품전 메모</button>` : ''}
                             ${!isProjectClosed(project) && isMaster ?
-                                `<button onclick="processProject('${project.id}')" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors ml-2">처리하기</button>
-                                 <button onclick="openEditDepartmentModal('${project.id}')" class="bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition-colors ml-2">수정하기</button>` :
+                                `<button onclick="processProject('${project.id}')" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors">처리하기</button>
+                                 <button onclick="openEditDepartmentModal('${project.id}')" class="bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition-colors">수정하기</button>` :
                                 !isProjectClosed(project) && canProcessProject(project) ? 
-                                `<button onclick="processProject('${project.id}')" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors ml-2">처리하기</button>` :
+                                `<button onclick="processProject('${project.id}')" class="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors">처리하기</button>` :
                                 !isProjectClosed(project) && canEditAccounting(project) ?
-                                `<button onclick="openAccountingEdit('${project.id}')" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700 transition-colors ml-2">사양수정</button>` :
+                                `<button onclick="openAccountingEdit('${project.id}')" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700 transition-colors">사양수정</button>` :
                                 !isProjectClosed(project) && canEditDesign(project) ?
-                                `<button onclick="openDesignEdit('${project.id}')" class="bg-purple-600 text-white px-3 py-1 rounded text-xs hover:bg-purple-700 transition-colors ml-2">설계수정</button>` :
+                                `<button onclick="openDesignEdit('${project.id}')" class="bg-purple-600 text-white px-3 py-1 rounded text-xs hover:bg-purple-700 transition-colors">설계수정</button>` :
                                 !isProjectClosed(project) && canEditSales(project) ?
-                                `<button onclick="openSalesEdit('${project.id}')" class="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition-colors ml-2">영업수정</button>` :
-                                (!isProjectClosed(project) ? `<span class="text-xs text-gray-500 ml-2">대기중</span>` : '')
+                                `<button onclick="openSalesEdit('${project.id}')" class="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition-colors">영업수정</button>` :
+                                (!isProjectClosed(project) ? `<span class="text-xs text-gray-500">대기중</span>` : '')
                             }
-                            ${showDeptAlert ? `<span class="ml-2 text-xs text-red-600">변경 확인</span>` : ''}
+                            ${showDeptAlert ? `<span class="text-xs text-red-600">변경 확인</span>` : ''}
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -2926,7 +3050,7 @@
                 { id: '경리', label: '경리' },
                 { id: '설계', label: '설계' },
                 { id: 'production_pending', label: '생산 확인중' },
-                { id: 'production_in_progress', label: '생산중' },
+                { id: 'production_in_progress', label: '생산 진행중' },
                 { id: 'ready', label: '준비완료' },
                 { id: 'delivered', label: '납품완료' }
             ];
@@ -3403,6 +3527,10 @@
             }
 
             saveProjectsToStorage();
+            setSubmitStatusMessage('Firebase 동기화 중...');
+            await flushSyncToFirebase();
+            setSubmitStatusMessage('');
+            await new Promise(resolve => setTimeout(resolve, 300));
             
             // 현재 필터 적용
             applyCurrentFilter();
@@ -3424,6 +3552,9 @@
         function setUserDepartment(department) {
             if (appState.user) {
                 appState.user.department = department;
+                if (appState.isLoggedIn) {
+                    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(appState.user));
+                }
             }
         }
 
