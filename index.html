@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>제조 프로젝트 관리 시스템 - Google 생태계 연동</title>
+    <title>제조 프로젝트 관리 시스템 - Firebase 생태계 연동</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -178,11 +181,11 @@
                     </button>
                 </div>
 
-                <!-- Google 로그인 상태 -->
+                <!-- Firebase 로그인 상태 -->
                 <div class="mt-auto p-4 border-t border-gray-200">
                     <div id="userInfo" class="text-sm text-gray-600 mb-3"></div>
                     <button id="googleSignIn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors mb-2">
-                        Google 로그인
+                        Firebase 로그인
                     </button>
                     <button id="googleSignOut" class="w-full px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors hidden">
                         로그아웃
@@ -226,10 +229,10 @@
                     <div id="loginRequired" class="text-center py-16">
                         <div class="max-w-md mx-auto">
                             <div class="bg-white rounded-lg shadow-md p-8">
-                                <h2 class="text-2xl font-bold text-gray-900 mb-4">Google 계정으로 로그인</h2>
-                                <p class="text-gray-600 mb-6">Google Sheets와 Google Drive 연동을 위해 로그인이 필요합니다.</p>
+                                <h2 class="text-2xl font-bold text-gray-900 mb-4">Firebase 계정으로 로그인</h2>
+                                <p class="text-gray-600 mb-6">Firebase DB와 Firebase Storage 연동을 위해 로그인이 필요합니다.</p>
                                 <button id="loginButton" class="w-full px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-                                    Google 로그인
+                                    Firebase 로그인
                                 </button>
                                 <div class="mt-6 border-t border-gray-200 pt-6">
                                     <label class="block text-sm font-medium text-gray-700 mb-2">데모 로그인 코드</label>
@@ -815,20 +818,91 @@
     </div>
 
     <script>
-        // Google API 설정 (데모 모드)
-        const GOOGLE_CONFIG = {
-            DEMO_MODE: true,
-            API_KEY: 'demo-key',
-            CLIENT_ID: 'demo-client-id',
-            SHEETS: {
-                PROJECT_SHEET_ID: 'demo-sheet-id',
-                MODEL_SHEET_ID: 'demo-model-sheet-id'
+        // Firebase 설정
+        const FIREBASE_CONFIG = {
+            apiKey: "AIzaSyD4YKF1I3H88O6APECkXVWFMvFiUugzEaQ",
+            authDomain: "newpjt-6d6b6.firebaseapp.com",
+            projectId: "newpjt-6d6b6",
+            storageBucket: "newpjt-6d6b6.firebasestorage.app",
+            messagingSenderId: "598696539163",
+            appId: "1:598696539163:web:f9b23ebf0e562a48e274be"
+        };
+        const FIREBASE_PATHS = {
+            PROJECTS: 'projects',
+            DELETED: 'deletedProjects',
+            SALES: 'sales',
+            ACCOUNTING: 'accounting',
+            DESIGN: 'design',
+            PRODUCTION: 'production',
+            AFTERCARE: 'aftercare',
+            STATE_DOC: 'state'
+        };
+        let firebaseApp = null;
+        let firestoreDb = null;
+        let firebaseReady = false;
+        let firebaseStorage = null;
+
+        function initFirebase() {
+            if (firebaseReady) return true;
+            if (!window.firebase || !firebase.initializeApp) {
+                console.warn('Firebase SDK not available; falling back to local storage.');
+                return false;
             }
-        };
-        const APPS_SCRIPT_CONFIG = {
-            ENABLED: true,
-            WEB_APP_URL: 'here was an error committing your changes: ceopark91 has committed since you started editing. See what changed'
-        };
+            firebaseApp = (firebase.apps && firebase.apps.length) ? firebase.apps[0] : firebase.initializeApp(FIREBASE_CONFIG);
+            firestoreDb = firebase.firestore();
+            firebaseStorage = firebase.storage();
+            firebaseReady = true;
+            return true;
+        }
+
+        function splitProjectForFirestore(project) {
+            const base = { ...project };
+            const sales = base.sales || {};
+            if (!sales.requestFiles && Array.isArray(base.requestFiles)) {
+                sales.requestFiles = base.requestFiles;
+            }
+            if (!sales.etcFiles && Array.isArray(base.etcFiles)) {
+                sales.etcFiles = base.etcFiles;
+            }
+            const accounting = base.accounting || {};
+            const design = base.design || {};
+            const production = base.production || {};
+            const aftercare = base.aftercare || {};
+            delete base.sales;
+            delete base.accounting;
+            delete base.design;
+            delete base.production;
+            delete base.aftercare;
+            delete base.requestFiles;
+            delete base.etcFiles;
+            return { base, sections: { sales, accounting, design, production, aftercare } };
+        }
+
+        function composeProjectFromFirestore(base, sections) {
+            return {
+                ...base,
+                sales: (sections && sections.sales) ? sections.sales : {},
+                accounting: (sections && sections.accounting) ? sections.accounting : {},
+                design: (sections && sections.design) ? sections.design : {},
+                production: (sections && sections.production) ? sections.production : {},
+                aftercare: (sections && sections.aftercare) ? sections.aftercare : {}
+            };
+        }
+
+        function normalizeProjectSales(project) {
+            if (!project) return project;
+            const sales = project.sales || {};
+            if (!sales.requestFiles && Array.isArray(project.requestFiles)) {
+                sales.requestFiles = project.requestFiles;
+            }
+            if (!sales.etcFiles && Array.isArray(project.etcFiles)) {
+                sales.etcFiles = project.etcFiles;
+            }
+            const normalized = { ...project, sales };
+            delete normalized.requestFiles;
+            delete normalized.etcFiles;
+            return normalized;
+        }
 
         // 애플리케이션 상태
         let appState = {
@@ -972,9 +1046,9 @@
 
         // 이벤트 리스너 설정
         function setupEventListeners() {
-            document.getElementById('googleSignIn').addEventListener('click', handleGoogleSignIn);
-            document.getElementById('googleSignOut').addEventListener('click', handleGoogleSignOut);
-            document.getElementById('loginButton').addEventListener('click', handleGoogleSignIn);
+            document.getElementById('googleSignIn').addEventListener('click', handleFirebaseSignIn);
+            document.getElementById('googleSignOut').addEventListener('click', handleFirebaseSignOut);
+            document.getElementById('loginButton').addEventListener('click', handleFirebaseSignIn);
             const demoLoginBtn = document.getElementById('demoLoginBtn');
             if (demoLoginBtn) {
                 demoLoginBtn.addEventListener('click', handleDemoLogin);
@@ -1211,7 +1285,7 @@
             }
             container.innerHTML = displayFiles.map((file, index) => `
                 <div class="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-md">
-                    ${file.dataUrl ? `<a class="text-blue-600 hover:text-blue-700 underline" href="${file.dataUrl}" target="_blank" rel="noopener">${file.name}</a>` : `<span>${file.name}</span>`}
+                    ${file.downloadUrl ? `<a class="text-blue-600 hover:text-blue-700 underline" href="${file.downloadUrl}" target="_blank" rel="noopener">${file.name}</a>` : (file.dataUrl ? `<a class="text-blue-600 hover:text-blue-700 underline" href="${file.dataUrl}" target="_blank" rel="noopener">${file.name}</a>` : `<span>${file.name}</span>`)}
                     <div class="flex items-center gap-2">
                         <span class="text-xs text-gray-400">${formatFileSize(file.size || 0)}</span>
                         ${allowRemove ? `<button type="button" onclick="removeExistingFile(${index}, '${options.type}', '${container.id}')" class="text-red-600 hover:text-red-900">삭제</button>` : ''}
@@ -1340,8 +1414,8 @@
         }
 
         function renderAccountingFiles(project) {
-            const requestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
-            const etcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
+            const requestFiles = getExistingFilesForEdit('request', getSalesRequestFiles(project));
+            const etcFiles = getExistingFilesForEdit('etc', getSalesEtcFiles(project));
             const requestContainer = document.getElementById('accountingRequestFiles');
             const etcContainer = document.getElementById('accountingEtcFiles');
             renderFileSummary(requestContainer, requestFiles, { allowRemove: true, type: 'request' });
@@ -1349,8 +1423,8 @@
         }
 
         function renderDesignFiles(project) {
-            const requestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
-            const etcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
+            const requestFiles = getExistingFilesForEdit('request', getSalesRequestFiles(project));
+            const etcFiles = getExistingFilesForEdit('etc', getSalesEtcFiles(project));
             renderFileSummary(document.getElementById('designRequestFiles'), requestFiles, { allowRemove: true, type: 'request' });
             renderFileSummary(document.getElementById('designEtcFiles'), etcFiles, { allowRemove: true, type: 'etc' });
             document.getElementById('designSalesNotes').textContent = project.notes || '메모가 없습니다.';
@@ -1376,8 +1450,8 @@
         }
 
         function renderProductionContext(project) {
-            renderFileSummary(document.getElementById('productionRequestFiles'), getExistingFilesForEdit('request', project.requestFiles || []), { allowRemove: true, type: 'request' });
-            renderFileSummary(document.getElementById('productionEtcFiles'), getExistingFilesForEdit('etc', project.etcFiles || []), { allowRemove: true, type: 'etc' });
+            renderFileSummary(document.getElementById('productionRequestFiles'), getExistingFilesForEdit('request', getSalesRequestFiles(project)), { allowRemove: true, type: 'request' });
+            renderFileSummary(document.getElementById('productionEtcFiles'), getExistingFilesForEdit('etc', getSalesEtcFiles(project)), { allowRemove: true, type: 'etc' });
             document.getElementById('productionSalesNotes').textContent = project.notes || '메모가 없습니다.';
             renderEarlyDeliveryList(document.getElementById('productionEarlyDeliveryList'), project);
             renderAccountingSummaryForProduction(project);
@@ -1412,8 +1486,8 @@
         }
 
         function renderViewContext(project) {
-            renderFileSummary(document.getElementById('viewRequestFiles'), project.requestFiles || []);
-            renderFileSummary(document.getElementById('viewEtcFiles'), project.etcFiles || []);
+            renderFileSummary(document.getElementById('viewRequestFiles'), getSalesRequestFiles(project));
+            renderFileSummary(document.getElementById('viewEtcFiles'), getSalesEtcFiles(project));
             document.getElementById('viewSalesNotes').textContent = project.notes || '메모가 없습니다.';
             renderEarlyDeliveryList(document.getElementById('viewEarlyDeliveryList'), project, { allowDelete: true });
             renderAccountingSummaryForView(project);
@@ -1655,10 +1729,26 @@
             };
         }
 
+        function getSalesRequestFiles(project) {
+            if (!project) return [];
+            if (project.sales && Array.isArray(project.sales.requestFiles)) {
+                return project.sales.requestFiles;
+            }
+            return Array.isArray(project.requestFiles) ? project.requestFiles : [];
+        }
+
+        function getSalesEtcFiles(project) {
+            if (!project) return [];
+            if (project.sales && Array.isArray(project.sales.etcFiles)) {
+                return project.sales.etcFiles;
+            }
+            return Array.isArray(project.etcFiles) ? project.etcFiles : [];
+        }
+
         function setExistingFilesFromProject(project) {
             appState.existingFiles = {
-                request: (project.requestFiles || []).slice(),
-                etc: (project.etcFiles || []).slice(),
+                request: getSalesRequestFiles(project).slice(),
+                etc: getSalesEtcFiles(project).slice(),
                 design: (project.design && project.design.files ? project.design.files.slice() : []),
                 production: (project.production && project.production.files ? project.production.files.slice() : []),
                 aftercare: (project.aftercare && project.aftercare.files ? project.aftercare.files.slice() : [])
@@ -1736,19 +1826,52 @@
             });
         }
 
-        async function buildFilePayload(files) {
-            const payloads = await Promise.all(files.map(async (file) => ({
-                name: file.name,
-                size: file.size,
-                type: file.type,
-                lastModified: file.lastModified,
-                dataUrl: await readFileAsDataUrl(file)
-            })));
+        function sanitizeFileName(fileName) {
+            return (fileName || '').replace(/[^\w.\-]+/g, '_');
+        }
+
+        async function uploadFileToStorage(file, projectId, section) {
+            if (!firebaseStorage || !projectId || !section) return null;
+            const safeName = sanitizeFileName(file.name);
+            const filePath = `projects/${projectId}/${section}/${Date.now()}_${safeName}`;
+            const ref = firebaseStorage.ref().child(filePath);
+            await ref.put(file);
+            const downloadUrl = await ref.getDownloadURL();
+            return { filePath, downloadUrl };
+        }
+
+        async function buildFilePayload(files, projectId, section) {
+            const payloads = await Promise.all(files.map(async (file) => {
+                if (initFirebase() && firebaseStorage) {
+                    try {
+                        const uploaded = await uploadFileToStorage(file, projectId, section);
+                        if (uploaded) {
+                            return {
+                                name: file.name,
+                                size: file.size,
+                                type: file.type,
+                                lastModified: file.lastModified,
+                                storagePath: uploaded.filePath,
+                                downloadUrl: uploaded.downloadUrl
+                            };
+                        }
+                    } catch (err) {
+                        console.warn('storage upload failed, falling back to dataUrl', err);
+                    }
+                }
+                return {
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                    lastModified: file.lastModified,
+                    dataUrl: await readFileAsDataUrl(file)
+                };
+            }));
             return payloads;
         }
 
-        // Google 로그인 처리
-        function handleGoogleSignIn() {
+        // Firebase 로그인 처리
+        function handleFirebaseSignIn() {
             // 데모 모드에서는 바로 로그인 처리
             appState.isLoggedIn = true;
             appState.user = {
@@ -1790,8 +1913,8 @@
             loadProjects();
         }
 
-        // Google 로그아웃 처리
-        function handleGoogleSignOut() {
+        // Firebase 로그아웃 처리
+        function handleFirebaseSignOut() {
             appState.isLoggedIn = false;
             appState.user = null;
             
@@ -1826,14 +1949,14 @@
         }
 
         // 프로젝트 로드
-        function loadProjects() {
-            if (APPS_SCRIPT_CONFIG.ENABLED && APPS_SCRIPT_CONFIG.WEB_APP_URL) {
-                loadProjectsFromServer();
+        async function loadProjects() {
+            if (initFirebase()) {
+                await loadProjectsFromFirebase();
                 return;
             }
             const savedProjects = localStorage.getItem(STORAGE_KEYS.PROJECTS);
             if (savedProjects) {
-                appState.projects = JSON.parse(savedProjects);
+                appState.projects = JSON.parse(savedProjects).map(normalizeProjectSales);
             } else {
                 appState.projects = [];
                 saveProjectsToStorage();
@@ -1843,21 +1966,22 @@
             renderProjects();
         }
 
-        function loadDeletedProjects() {
-            if (APPS_SCRIPT_CONFIG.ENABLED && APPS_SCRIPT_CONFIG.WEB_APP_URL) {
+        async function loadDeletedProjects() {
+            if (initFirebase()) {
+                await loadDeletedProjectsFromFirebase();
                 return;
             }
             const savedDeleted = localStorage.getItem(STORAGE_KEYS.DELETED);
             if (savedDeleted) {
-                appState.deletedProjects = JSON.parse(savedDeleted);
+                appState.deletedProjects = JSON.parse(savedDeleted).map(normalizeProjectSales);
             } else {
                 appState.deletedProjects = [];
             }
         }
 
         function saveDeletedProjects() {
-            if (APPS_SCRIPT_CONFIG.ENABLED && APPS_SCRIPT_CONFIG.WEB_APP_URL) {
-                queueSyncToServer();
+            if (initFirebase()) {
+                queueSyncToFirebase();
                 return;
             }
             localStorage.setItem(STORAGE_KEYS.DELETED, JSON.stringify(appState.deletedProjects));
@@ -2017,8 +2141,8 @@
 
         // 프로젝트를 로컬 스토리지에 저장
         function saveProjectsToStorage() {
-            if (APPS_SCRIPT_CONFIG.ENABLED && APPS_SCRIPT_CONFIG.WEB_APP_URL) {
-                queueSyncToServer();
+            if (initFirebase()) {
+                queueSyncToFirebase();
                 return;
             }
             localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(appState.projects));
@@ -2028,51 +2152,97 @@
         let syncInFlight = false;
         let syncPending = false;
 
-        function queueSyncToServer() {
+        function queueSyncToFirebase() {
             syncPending = true;
             if (syncTimer) clearTimeout(syncTimer);
-            syncTimer = setTimeout(syncProjectsToServer, 400);
+            syncTimer = setTimeout(syncProjectsToFirebase, 400);
         }
 
-        async function syncProjectsToServer() {
+        async function syncProjectsToFirebase() {
             if (syncInFlight) return;
             syncInFlight = true;
             syncPending = false;
             try {
-                const response = await callAppsScript('syncAll', {
-                    projects: appState.projects,
-                    deletedProjects: appState.deletedProjects,
-                    user: appState.user || null
+                if (!initFirebase()) return;
+                const batch = firestoreDb.batch();
+                const projectsRef = firestoreDb.collection(FIREBASE_PATHS.PROJECTS);
+                const deletedRef = firestoreDb.collection(FIREBASE_PATHS.DELETED);
+                const activeIds = new Set(appState.projects.map(project => project.id));
+                const deletedIds = new Set(appState.deletedProjects.map(project => project.id));
+
+                appState.projects.forEach(project => {
+                    const { base, sections } = splitProjectForFirestore(project);
+                    const docRef = projectsRef.doc(project.id);
+                    batch.set(docRef, base, { merge: true });
+                    batch.set(docRef.collection(FIREBASE_PATHS.SALES).doc(FIREBASE_PATHS.STATE_DOC), sections.sales || {}, { merge: true });
+                    batch.set(docRef.collection(FIREBASE_PATHS.ACCOUNTING).doc(FIREBASE_PATHS.STATE_DOC), sections.accounting || {}, { merge: true });
+                    batch.set(docRef.collection(FIREBASE_PATHS.DESIGN).doc(FIREBASE_PATHS.STATE_DOC), sections.design || {}, { merge: true });
+                    batch.set(docRef.collection(FIREBASE_PATHS.PRODUCTION).doc(FIREBASE_PATHS.STATE_DOC), sections.production || {}, { merge: true });
+                    batch.set(docRef.collection(FIREBASE_PATHS.AFTERCARE).doc(FIREBASE_PATHS.STATE_DOC), sections.aftercare || {}, { merge: true });
                 });
-                if (response && Array.isArray(response.projects)) {
-                    appState.projects = response.projects;
-                    appState.filteredProjects = [...appState.projects];
-                    updateStatistics();
-                    renderProjects();
-                }
-                if (response && Array.isArray(response.deletedProjects)) {
-                    appState.deletedProjects = response.deletedProjects;
-                }
+
+                appState.deletedProjects.forEach(project => {
+                    batch.set(deletedRef.doc(project.id), project, { merge: true });
+                });
+
+                const existingProjectsSnapshot = await projectsRef.get();
+                existingProjectsSnapshot.forEach(doc => {
+                    if (!activeIds.has(doc.id)) {
+                        batch.delete(doc.ref);
+                        batch.delete(doc.ref.collection(FIREBASE_PATHS.SALES).doc(FIREBASE_PATHS.STATE_DOC));
+                        batch.delete(doc.ref.collection(FIREBASE_PATHS.ACCOUNTING).doc(FIREBASE_PATHS.STATE_DOC));
+                        batch.delete(doc.ref.collection(FIREBASE_PATHS.DESIGN).doc(FIREBASE_PATHS.STATE_DOC));
+                        batch.delete(doc.ref.collection(FIREBASE_PATHS.PRODUCTION).doc(FIREBASE_PATHS.STATE_DOC));
+                        batch.delete(doc.ref.collection(FIREBASE_PATHS.AFTERCARE).doc(FIREBASE_PATHS.STATE_DOC));
+                    }
+                });
+
+                const existingDeletedSnapshot = await deletedRef.get();
+                existingDeletedSnapshot.forEach(doc => {
+                    if (!deletedIds.has(doc.id)) {
+                        batch.delete(doc.ref);
+                    }
+                });
+
+                await batch.commit();
             } catch (err) {
-                console.error('syncProjectsToServer failed', err);
+                console.error('syncProjectsToFirebase failed', err);
             } finally {
                 syncInFlight = false;
                 if (syncPending) {
-                    queueSyncToServer();
+                    queueSyncToFirebase();
                 }
             }
         }
 
-        async function loadProjectsFromServer() {
+        async function loadProjectsFromFirebase() {
             try {
-                const response = await callAppsScript('loadAll', {});
-                appState.projects = Array.isArray(response.projects) ? response.projects : [];
-                appState.deletedProjects = Array.isArray(response.deletedProjects) ? response.deletedProjects : [];
+                if (!initFirebase()) return;
+                const projectsSnapshot = await firestoreDb.collection(FIREBASE_PATHS.PROJECTS).get();
+                const projectPromises = projectsSnapshot.docs.map(async doc => {
+                    const base = doc.data() || {};
+                    const [salesSnap, accountingSnap, designSnap, productionSnap, aftercareSnap] = await Promise.all([
+                        doc.ref.collection(FIREBASE_PATHS.SALES).doc(FIREBASE_PATHS.STATE_DOC).get(),
+                        doc.ref.collection(FIREBASE_PATHS.ACCOUNTING).doc(FIREBASE_PATHS.STATE_DOC).get(),
+                        doc.ref.collection(FIREBASE_PATHS.DESIGN).doc(FIREBASE_PATHS.STATE_DOC).get(),
+                        doc.ref.collection(FIREBASE_PATHS.PRODUCTION).doc(FIREBASE_PATHS.STATE_DOC).get(),
+                        doc.ref.collection(FIREBASE_PATHS.AFTERCARE).doc(FIREBASE_PATHS.STATE_DOC).get()
+                    ]);
+                    const sections = {
+                        sales: salesSnap.exists ? salesSnap.data() : {},
+                        accounting: accountingSnap.exists ? accountingSnap.data() : {},
+                        design: designSnap.exists ? designSnap.data() : {},
+                        production: productionSnap.exists ? productionSnap.data() : {},
+                        aftercare: aftercareSnap.exists ? aftercareSnap.data() : {}
+                    };
+                    return composeProjectFromFirestore({ id: doc.id, ...base }, sections);
+                });
+                appState.projects = await Promise.all(projectPromises);
                 appState.filteredProjects = [...appState.projects];
                 updateStatistics();
                 renderProjects();
             } catch (err) {
-                console.error('loadProjectsFromServer failed', err);
+                console.error('loadProjectsFromFirebase failed', err);
                 appState.projects = [];
                 appState.filteredProjects = [];
                 updateStatistics();
@@ -2080,19 +2250,15 @@
             }
         }
 
-        async function callAppsScript(action, payload) {
-            if (!APPS_SCRIPT_CONFIG.WEB_APP_URL) {
-                throw new Error('Missing Apps Script URL');
+        async function loadDeletedProjectsFromFirebase() {
+            try {
+                if (!initFirebase()) return;
+                const deletedSnapshot = await firestoreDb.collection(FIREBASE_PATHS.DELETED).get();
+                appState.deletedProjects = deletedSnapshot.docs.map(doc => normalizeProjectSales({ id: doc.id, ...doc.data() }));
+            } catch (err) {
+                console.error('loadDeletedProjectsFromFirebase failed', err);
+                appState.deletedProjects = [];
             }
-            const response = await fetch(APPS_SCRIPT_CONFIG.WEB_APP_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action, ...payload })
-            });
-            if (!response.ok) {
-                throw new Error(`Apps Script error: ${response.status}`);
-            }
-            return response.json();
         }
 
         // 통계 업데이트
@@ -2808,6 +2974,7 @@
                 submitAction = submitBtn.dataset.action;
             }
             
+            const projectId = appState.currentEditId || Date.now().toString();
             const formData = {
                 projectNumber: document.getElementById('projectNumber').value,
                 projectName: document.getElementById('projectName').value,
@@ -2820,8 +2987,11 @@
                 notes: document.getElementById('notes').value,
                 earlyDeliveryDate: document.getElementById('earlyDeliveryDate').value,
                 earlyDeliveryNotes: document.getElementById('earlyDeliveryNotes').value,
-                requestFiles: await buildFilePayload(appState.attachedFilesRequest),
-                etcFiles: await buildFilePayload(appState.attachedFilesEtc)
+                sales: {
+                    requestFiles: await buildFilePayload(appState.attachedFilesRequest, projectId, 'sales/request'),
+                    etcFiles: await buildFilePayload(appState.attachedFilesEtc, projectId, 'sales/etc')
+                },
+                userId: appState.user ? (appState.user.id || appState.user.email || '') : ''
             };
             if (!appState.currentEditId && (formData.earlyDeliveryDate || formData.earlyDeliveryNotes)) {
                 formData.earlyDeliveryMemos = [{
@@ -2855,13 +3025,13 @@
             if (isDesignMode) {
                 formData.design = {
                     memo: document.getElementById('designMemo').value.trim(),
-                    files: await buildFilePayload(appState.attachedFilesDesign)
+                    files: await buildFilePayload(appState.attachedFilesDesign, projectId, 'design')
                 };
             }
             if (isProductionMode) {
                 formData.production = {
                     memo: document.getElementById('productionMemo').value.trim(),
-                    files: await buildFilePayload(appState.attachedFilesProduction)
+                    files: await buildFilePayload(appState.attachedFilesProduction, projectId, 'production')
                 };
                 if (submitAction === 'start') {
                     formData.status = '진행중';
@@ -2872,7 +3042,7 @@
             if (submitAction === 'aftercare') {
                 formData.aftercare = {
                     memo: document.getElementById('aftercareMemo').value.trim(),
-                    files: await buildFilePayload(appState.attachedFilesAftercare)
+                    files: await buildFilePayload(appState.attachedFilesAftercare, projectId, 'aftercare')
                 };
                 formData.deliveryCompletedAt = document.getElementById('aftercareDeliveryDateInput').value;
             }
@@ -2895,18 +3065,14 @@
 
                     if (editMode === 'sales') {
                         formData.accounting = project.accounting || null;
-                        const baseRequestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
-                        const baseEtcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
-                        if (formData.requestFiles.length === 0) {
-                            formData.requestFiles = baseRequestFiles;
-                        } else {
-                            formData.requestFiles = baseRequestFiles.concat(formData.requestFiles);
-                        }
-                        if (formData.etcFiles.length === 0) {
-                            formData.etcFiles = baseEtcFiles;
-                        } else {
-                            formData.etcFiles = baseEtcFiles.concat(formData.etcFiles);
-                        }
+                        const baseRequestFiles = getExistingFilesForEdit('request', getSalesRequestFiles(project));
+                        const baseEtcFiles = getExistingFilesForEdit('etc', getSalesEtcFiles(project));
+                        const nextRequestFiles = (formData.sales && formData.sales.requestFiles) || [];
+                        const nextEtcFiles = (formData.sales && formData.sales.etcFiles) || [];
+                        formData.sales = {
+                            requestFiles: nextRequestFiles.length === 0 ? baseRequestFiles : baseRequestFiles.concat(nextRequestFiles),
+                            etcFiles: nextEtcFiles.length === 0 ? baseEtcFiles : baseEtcFiles.concat(nextEtcFiles)
+                        };
 
                         if (!project.workflow) project.workflow = {};
                         project.workflow['경리'] = { completed: false, completedAt: null, completedBy: null };
@@ -2928,8 +3094,10 @@
                         formData.notes = project.notes;
                         formData.earlyDeliveryDate = project.earlyDeliveryDate || '';
                         formData.earlyDeliveryNotes = project.earlyDeliveryNotes || '';
-                        formData.requestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
-                        formData.etcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
+                        formData.sales = {
+                            requestFiles: getExistingFilesForEdit('request', getSalesRequestFiles(project)),
+                            etcFiles: getExistingFilesForEdit('etc', getSalesEtcFiles(project))
+                        };
                         formData.accounting = project.accounting || null;
                         const existingDesign = project.design || { memo: '', files: [] };
                         const nextMemo = formData.design && formData.design.memo ? formData.design.memo : existingDesign.memo;
@@ -2969,8 +3137,10 @@
                         formData.notes = project.notes;
                         formData.earlyDeliveryDate = project.earlyDeliveryDate || '';
                         formData.earlyDeliveryNotes = project.earlyDeliveryNotes || '';
-                        formData.requestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
-                        formData.etcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
+                        formData.sales = {
+                            requestFiles: getExistingFilesForEdit('request', getSalesRequestFiles(project)),
+                            etcFiles: getExistingFilesForEdit('etc', getSalesEtcFiles(project))
+                        };
                         formData.accounting = project.accounting || null;
                         formData.design = project.design
                             ? { ...project.design, files: getExistingFilesForEdit('design', project.design.files || []) }
@@ -3007,8 +3177,10 @@
                         formData.notes = project.notes;
                         formData.earlyDeliveryDate = project.earlyDeliveryDate || '';
                         formData.earlyDeliveryNotes = project.earlyDeliveryNotes || '';
-                        formData.requestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
-                        formData.etcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
+                        formData.sales = {
+                            requestFiles: getExistingFilesForEdit('request', getSalesRequestFiles(project)),
+                            etcFiles: getExistingFilesForEdit('etc', getSalesEtcFiles(project))
+                        };
                         formData.accounting = project.accounting || null;
                         formData.design = project.design
                             ? { ...project.design, files: getExistingFilesForEdit('design', project.design.files || []) }
@@ -3038,8 +3210,10 @@
                         formData.notes = project.notes;
                         formData.earlyDeliveryDate = project.earlyDeliveryDate || '';
                         formData.earlyDeliveryNotes = project.earlyDeliveryNotes || '';
-                        formData.requestFiles = getExistingFilesForEdit('request', project.requestFiles || []);
-                        formData.etcFiles = getExistingFilesForEdit('etc', project.etcFiles || []);
+                        formData.sales = {
+                            requestFiles: getExistingFilesForEdit('request', getSalesRequestFiles(project)),
+                            etcFiles: getExistingFilesForEdit('etc', getSalesEtcFiles(project))
+                        };
                     }
 
                     const isDesignEdit = editMode === 'design';
@@ -3127,12 +3301,15 @@
                         }
                     }
                     
-                    appState.projects[index] = { ...project, ...formData };
+                    const mergedProject = { ...project, ...formData };
+                    delete mergedProject.requestFiles;
+                    delete mergedProject.etcFiles;
+                    appState.projects[index] = mergedProject;
                 }
             } else {
                 // 새 프로젝트 생성 (영업부 전용)
                 const newProject = {
-                    id: Date.now().toString(),
+                    id: projectId,
                     ...formData,
                     workflow: {
                         영업: {
