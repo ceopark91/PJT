@@ -108,6 +108,68 @@
         .mobile-home-btn:hover {
             background: #1d4ed8;
         }
+        .calendar-modal {
+            backdrop-filter: blur(4px);
+        }
+        .calendar-card {
+            background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+        }
+        .calendar-day {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.75rem;
+            padding: 0.5rem;
+            min-height: 120px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+        }
+        .calendar-day--empty {
+            background: #f8fafc;
+            border-style: dashed;
+            box-shadow: none;
+        }
+        .calendar-day--today {
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+        }
+        .calendar-date {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #374151;
+        }
+        .calendar-date--weekend {
+            color: #ef4444;
+        }
+        .calendar-event {
+            background: #eff6ff;
+            color: #1d4ed8;
+            border-radius: 9999px;
+            padding: 0.125rem 0.5rem;
+            font-size: 0.7rem;
+            text-align: left;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .calendar-event:hover {
+            background: #dbeafe;
+        }
+        .calendar-event--wp {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        .calendar-event--wp:hover {
+            background: #fecaca;
+        }
+        .calendar-header {
+            background: #ffffff;
+        }
+        .calendar-weekdays {
+            color: #6b7280;
+            font-weight: 600;
+        }
         @media (max-width: 640px) {
             .mobile-card-table,
             .mobile-card-table tbody,
@@ -177,6 +239,12 @@
                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
 
+                <div class="p-3 sm:p-4 border-b border-gray-200">
+                    <button id="openDeliveryCalendar" class="w-full px-4 py-2 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors text-sm">
+                        납기 캘린더
+                    </button>
+                </div>
+
                 <!-- 경리부 업무 -->
                 <div id="accountingTaskSection" class="p-3 sm:p-4 border-b border-gray-200 hidden">
                     <h3 class="text-sm font-medium text-gray-700 mb-3">경리부 업무</h3>
@@ -192,6 +260,17 @@
                         <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByAccountingTask('accounting_delivery')">
                             <span class="text-sm text-gray-600">경리부 납품 완료</span>
                             <span id="countAccountingDelivery" class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- W/P 관리 -->
+                <div class="p-3 sm:p-4 border-b border-gray-200">
+                    <h3 class="text-sm font-medium text-gray-700 mb-3">W/P 관리</h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterWpPending()">
+                            <span class="text-sm text-gray-600">W/P 납기 미완료</span>
+                            <span id="countWpPending" class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">0</span>
                         </div>
                     </div>
                 </div>
@@ -370,7 +449,9 @@
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">상태</th>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">작성자</th>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">요청일</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">확정납기일</th>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">작업</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
                                         </tr>
                                     </thead>
                                     <tbody id="projectTableBody" class="bg-white divide-y divide-gray-200">
@@ -390,6 +471,49 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10.5L12 3l9 7.5V20a1 1 0 01-1 1h-5a1 1 0 01-1-1v-4H10v4a1 1 0 01-1 1H4a1 1 0 01-1-1v-9.5z"></path>
             </svg>
         </button>
+
+        <!-- 납기 캘린더 모달 -->
+        <div id="deliveryCalendarModal" class="fixed inset-0 bg-black/40 hidden z-50 calendar-modal">
+            <div class="min-h-screen flex items-center justify-center p-4">
+                <div class="bg-white rounded-xl shadow-xl w-full max-w-6xl overflow-hidden">
+                    <div class="calendar-header flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                        <div class="font-semibold text-gray-900">납기 캘린더</div>
+                        <div class="flex items-center gap-2">
+                            <button id="calendarPrevMonth" class="px-3 py-1 text-sm bg-gray-100 rounded-full hover:bg-gray-200">이전</button>
+                            <div id="calendarMonthLabel" class="text-sm font-semibold text-gray-700 w-24 text-center"></div>
+                            <button id="calendarNextMonth" class="px-3 py-1 text-sm bg-gray-100 rounded-full hover:bg-gray-200">다음</button>
+                        </div>
+                        <button id="closeDeliveryCalendar" class="text-sm text-gray-500 hover:text-gray-700">닫기</button>
+                    </div>
+                    <div class="calendar-card p-5">
+                        <div class="calendar-weekdays grid grid-cols-7 text-xs mb-3">
+                            <div class="text-center">일</div>
+                            <div class="text-center">월</div>
+                            <div class="text-center">화</div>
+                            <div class="text-center">수</div>
+                            <div class="text-center">목</div>
+                            <div class="text-center">금</div>
+                            <div class="text-center">토</div>
+                        </div>
+                        <div id="deliveryCalendarGrid" class="grid grid-cols-7 gap-3 text-xs"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="calendarDayModal" class="fixed inset-0 bg-black/40 hidden z-50">
+            <div class="min-h-screen flex items-center justify-center p-4">
+                <div class="bg-white rounded-lg shadow-xl w-full max-w-lg">
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                        <div id="calendarDayTitle" class="font-semibold text-gray-900">일정</div>
+                        <button id="closeCalendarDay" class="text-sm text-gray-500 hover:text-gray-700">닫기</button>
+                    </div>
+                    <div class="p-5">
+                        <div id="calendarDayList" class="space-y-2 text-sm text-gray-700"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <div id="projectModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
             <div class="relative top-20 mx-auto p-5 border w-full max-w-4xl bg-white rounded-lg shadow-lg">
@@ -713,6 +837,15 @@
                         </div>
 
                         <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">확정 납기일</label>
+                            <input type="date" id="confirmedDeliveryDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">W/P 납기 확정일</label>
+                            <input type="date" id="wpConfirmedDeliveryDate" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+
+                        <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">생산 진행 파일 첨부</label>
                             <div id="fileDropZoneProduction" class="file-drop-zone rounded-lg p-6 text-center cursor-pointer">
                                 <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1025,6 +1158,8 @@
             currentEditId: null,
             user: null,
             currentFilter: 'none',
+            visibleCount: 0,
+            calendarItemsByDate: {},
             attachedFilesRequest: [],
             attachedFilesEtc: [],
             attachedFilesDesign: [],
@@ -1134,6 +1269,14 @@
                 counter += 1;
             }
             return `${baseNumber}${String(Date.now()).slice(-2)}`;
+        }
+
+        function getPageSize() {
+            return window.matchMedia('(max-width: 640px)').matches ? 5 : 30;
+        }
+
+        function resetVisibleCount() {
+            appState.visibleCount = getPageSize();
         }
 
         function updateProjectNumber() {
@@ -1254,6 +1397,27 @@
             if (openDeleteHistory) {
                 openDeleteHistory.addEventListener('click', openDeleteHistoryModal);
             }
+            const openDeliveryCalendar = document.getElementById('openDeliveryCalendar');
+            if (openDeliveryCalendar) {
+                openDeliveryCalendar.addEventListener('click', openDeliveryCalendarModal);
+            }
+            const closeDeliveryCalendar = document.getElementById('closeDeliveryCalendar');
+            if (closeDeliveryCalendar) {
+                closeDeliveryCalendar.addEventListener('click', closeDeliveryCalendarModal);
+            }
+            const closeCalendarDay = document.getElementById('closeCalendarDay');
+            if (closeCalendarDay) {
+                closeCalendarDay.addEventListener('click', closeCalendarDayModal);
+            }
+            const calendarPrev = document.getElementById('calendarPrevMonth');
+            if (calendarPrev) {
+                calendarPrev.addEventListener('click', () => shiftCalendarMonth(-1));
+            }
+            const calendarNext = document.getElementById('calendarNextMonth');
+            if (calendarNext) {
+                calendarNext.addEventListener('click', () => shiftCalendarMonth(1));
+            }
+            window.addEventListener('scroll', handleInfiniteScroll, { passive: true });
             const closeDeleteHistory = document.getElementById('closeDeleteHistory');
             if (closeDeleteHistory) {
                 closeDeleteHistory.addEventListener('click', closeDeleteHistoryModal);
@@ -1410,6 +1574,8 @@
             document.getElementById('productionAccountingMemo').textContent = '';
             document.getElementById('productionDesignFiles').innerHTML = '';
             document.getElementById('productionDesignMemo').textContent = '';
+            document.getElementById('confirmedDeliveryDate').value = '';
+            document.getElementById('wpConfirmedDeliveryDate').value = '';
             document.getElementById('productionMemo').value = '';
             appState.attachedFilesProduction = [];
             renderFileList('production');
@@ -2352,6 +2518,118 @@
             focusProjectList();
         }
 
+        function editConfirmedDeliveryDate(projectId) {
+            const project = appState.projects.find(p => p.id === projectId);
+            if (!project) return;
+            const currentValue = project.confirmedDeliveryDate || project.deliveryDate || project.requestDate || '';
+            const nextValue = prompt('확정 납기일을 입력하세요 (YYYY-MM-DD)', currentValue);
+            if (nextValue === null) return;
+            const trimmed = nextValue.trim();
+            if (trimmed && !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+                alert('날짜 형식은 YYYY-MM-DD 입니다.');
+                return;
+            }
+            project.confirmedDeliveryDate = trimmed || null;
+            saveProjectsToStorage();
+            applyCurrentFilter();
+            updateStatistics();
+            renderProjects();
+            focusProjectList();
+        }
+
+        function editQuickMemo(projectId) {
+            const project = appState.projects.find(p => p.id === projectId);
+            if (!project) return;
+            const currentValue = project.quickMemo || '';
+            const nextValue = prompt('비고 메모를 입력하세요', currentValue);
+            if (nextValue === null) return;
+            const trimmed = nextValue.trim();
+            if (!project.quickMemoHistory) project.quickMemoHistory = [];
+            if (currentValue) {
+                project.quickMemoHistory.unshift({
+                    text: currentValue,
+                    updatedAt: new Date().toISOString()
+                });
+            }
+            project.quickMemo = trimmed;
+            saveProjectsToStorage();
+            applyCurrentFilter();
+            updateStatistics();
+            renderProjects();
+            focusProjectList();
+        }
+
+        function editWpConfirmedDeliveryDate(projectId) {
+            const project = appState.projects.find(p => p.id === projectId);
+            if (!project) return;
+            const currentValue = project.wpConfirmedDeliveryDate ||
+                (project.accounting && project.accounting.wpRequestDueDate) || '';
+            const nextValue = prompt('W/P 납기 확정일을 입력하세요 (YYYY-MM-DD)', currentValue);
+            if (nextValue === null) return;
+            const trimmed = nextValue.trim();
+            if (trimmed && !/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+                alert('날짜 형식은 YYYY-MM-DD 입니다.');
+                return;
+            }
+            project.wpConfirmedDeliveryDate = trimmed || null;
+            if (!project.wpConfirmedDeliveryDate) {
+                project.wpDeliveryCompletedAt = null;
+            }
+            saveProjectsToStorage();
+            applyCurrentFilter();
+            updateStatistics();
+            renderProjects();
+            focusProjectList();
+        }
+
+        function deleteQuickMemo(projectId) {
+            const project = appState.projects.find(p => p.id === projectId);
+            if (!project) return;
+            if (!project.quickMemo) return;
+            if (!confirm('비고 메모를 삭제할까요?')) return;
+            if (!project.quickMemoHistory) project.quickMemoHistory = [];
+            project.quickMemoHistory.unshift({
+                text: project.quickMemo,
+                updatedAt: new Date().toISOString(),
+                deleted: true
+            });
+            project.quickMemo = '';
+            saveProjectsToStorage();
+            applyCurrentFilter();
+            updateStatistics();
+            renderProjects();
+            focusProjectList();
+        }
+
+        function markWpDeliveryCompleted(projectId) {
+            const project = appState.projects.find(p => p.id === projectId);
+            if (!project) return;
+            if (!project.wpConfirmedDeliveryDate) return;
+            if (!confirm('W/P 납기완료로 처리할까요?')) return;
+            project.wpDeliveryCompletedAt = new Date().toISOString().split('T')[0];
+            saveProjectsToStorage();
+            applyCurrentFilter();
+            updateStatistics();
+            renderProjects();
+            focusProjectList();
+        }
+
+        function viewQuickMemoHistory(projectId) {
+            const project = appState.projects.find(p => p.id === projectId);
+            if (!project) return;
+            const history = Array.isArray(project.quickMemoHistory) ? project.quickMemoHistory : [];
+            if (history.length === 0) {
+                alert('이전 메모가 없습니다.');
+                return;
+            }
+            const lines = history.map(entry => {
+                const label = entry.deleted ? '삭제됨' : '이전';
+                const date = entry.updatedAt ? new Date(entry.updatedAt).toLocaleString('ko-KR') : '-';
+                return `[${label}] ${date}\n${entry.text || ''}`;
+            });
+            alert(lines.join('\n\n---\n\n'));
+        }
+
         function cancelReadyCompletion(projectId) {
             const project = appState.projects.find(p => p.id === projectId);
             if (!project) return;
@@ -2581,6 +2859,8 @@
             if (accountingReceptionEl) accountingReceptionEl.textContent = accountingReceptionCount;
             if (accountingInvoiceEl) accountingInvoiceEl.textContent = accountingInvoiceCount;
             if (accountingDeliveryEl) accountingDeliveryEl.textContent = accountingDeliveryCount;
+            const wpPendingEl = document.getElementById('countWpPending');
+            if (wpPendingEl) wpPendingEl.textContent = countWpPending();
 
             // 통계 카드 업데이트
             document.getElementById('totalProjects').textContent = total;
@@ -2595,16 +2875,41 @@
             document.getElementById('lastUpdated').textContent = `마지막 업데이트: ${new Date().toLocaleTimeString('ko-KR')}`;
         }
 
+        let scrollTicking = false;
+
+        function handleInfiniteScroll() {
+            if (scrollTicking) return;
+            scrollTicking = true;
+            requestAnimationFrame(() => {
+                scrollTicking = false;
+                const pageSize = getPageSize();
+                const totalCount = appState.filteredProjects.length;
+                if (totalCount === 0) return;
+                if (!appState.visibleCount) {
+                    appState.visibleCount = pageSize;
+                }
+                if (appState.visibleCount >= totalCount) return;
+                const scrollPosition = window.innerHeight + window.scrollY;
+                const threshold = document.body.offsetHeight - 200;
+                if (scrollPosition >= threshold) {
+                    appState.visibleCount = Math.min(appState.visibleCount + pageSize, totalCount);
+                    renderProjects();
+                }
+            });
+        }
+
         // 프로젝트 렌더링
         function renderProjects() {
             const tableBody = document.getElementById('projectTableBody');
             const filteredCount = document.getElementById('filteredCount');
             
             const totalCount = appState.filteredProjects.length;
-            const isMobile = window.matchMedia('(max-width: 640px)').matches;
-            const pageLimit = isMobile ? 5 : 30;
-            const visibleProjects = appState.filteredProjects.slice(0, pageLimit);
-            const visibleCount = visibleProjects.length;
+            const pageSize = getPageSize();
+            if (!appState.visibleCount) {
+                appState.visibleCount = pageSize;
+            }
+            const visibleCount = Math.min(appState.visibleCount, totalCount);
+            const visibleProjects = appState.filteredProjects.slice(0, visibleCount);
 
             filteredCount.textContent = totalCount > visibleCount
                 ? `총 ${totalCount}개 중 ${visibleCount}개 표시`
@@ -2665,6 +2970,19 @@
                         </td>
                         <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-500 sm:whitespace-nowrap" data-label="담당자">${project.manager}</td>
                         <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-500 sm:whitespace-nowrap" data-label="요청일">${project.requestDate}</td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-500 sm:whitespace-nowrap" data-label="확정납기일">
+                            <div class="flex items-center gap-2">
+                                <span>${project.confirmedDeliveryDate || project.deliveryDate || project.requestDate || '-'}</span>
+                                <button type="button" class="text-xs text-blue-600 hover:text-blue-700 underline" onclick="editConfirmedDeliveryDate('${project.id}')">수정</button>
+                            </div>
+                            ${project.wpConfirmedDeliveryDate ? `
+                                <div class="mt-1 flex items-center gap-2 text-[11px] text-gray-500">
+                                    <span>W/P ${project.wpConfirmedDeliveryDate}</span>
+                                    <button type="button" class="text-[11px] text-blue-600 hover:text-blue-700 underline" onclick="editWpConfirmedDeliveryDate('${project.id}')">W/P 수정</button>
+                                    ${project.wpDeliveryCompletedAt ? `<span class="text-[10px] text-red-600">W/P 납기완료</span>` : `<button type="button" class="text-[11px] text-red-600 hover:text-red-700 underline" onclick="markWpDeliveryCompleted('${project.id}')">납기완료하기</button>`}
+                                </div>
+                            ` : ''}
+                        </td>
                         <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium" data-label="작업">
                             <div class="flex flex-wrap gap-2 justify-start mobile-actions">
                             ${isReadyCompleted(project) ? 
@@ -2699,6 +3017,14 @@
                                 (!isProjectClosed(project) ? `<span class="text-xs text-gray-500">대기중</span>` : '')
                             }
                             ${showDeptAlert ? `<span class="text-xs text-red-600">변경 확인</span>` : ''}
+                            </div>
+                        </td>
+                        <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm text-gray-500 sm:whitespace-nowrap" data-label="비고">
+                            <div class="text-xs text-gray-600 whitespace-pre-wrap">${project.quickMemo || ''}</div>
+                            <div class="mt-1 flex items-center gap-2">
+                                <button type="button" class="text-[11px] text-blue-600 hover:text-blue-700 underline" onclick="editQuickMemo('${project.id}')">메모추가</button>
+                                <button type="button" class="text-[11px] text-gray-600 hover:text-gray-700 underline" onclick="viewQuickMemoHistory('${project.id}')">이전메모보기</button>
+                                <button type="button" class="text-[11px] text-red-600 hover:text-red-700 underline" onclick="deleteQuickMemo('${project.id}')">삭제</button>
                             </div>
                         </td>
                     </tr>
@@ -2786,6 +3112,7 @@
                 const workflow = project.workflow || {};
                 return workflow['영업'] && !workflow['영업'].completed;
             });
+            resetVisibleCount();
             renderProjects();
         }
 
@@ -2833,6 +3160,143 @@
             }).length;
         }
 
+        function countWpPending() {
+            return appState.projects.filter(project => {
+                if (!project.wpConfirmedDeliveryDate) return false;
+                if (project.wpDeliveryCompletedAt) return false;
+                return getCurrentWorkflowStep(project) === '생산';
+            }).length;
+        }
+
+        function filterWpPending() {
+            appState.currentFilter = 'wp_pending';
+            appState.filteredProjects = appState.projects.filter(project => {
+                if (!project.wpConfirmedDeliveryDate) return false;
+                if (project.wpDeliveryCompletedAt) return false;
+                return getCurrentWorkflowStep(project) === '생산';
+            });
+            resetVisibleCount();
+            renderProjects();
+        }
+
+        let deliveryCalendarMonth = new Date();
+
+        function openDeliveryCalendarModal() {
+            deliveryCalendarMonth = new Date();
+            renderDeliveryCalendar();
+            document.getElementById('deliveryCalendarModal').classList.remove('hidden');
+        }
+
+        function closeDeliveryCalendarModal() {
+            document.getElementById('deliveryCalendarModal').classList.add('hidden');
+        }
+
+        function shiftCalendarMonth(delta) {
+            deliveryCalendarMonth = new Date(
+                deliveryCalendarMonth.getFullYear(),
+                deliveryCalendarMonth.getMonth() + delta,
+                1
+            );
+            renderDeliveryCalendar();
+        }
+
+        function getDeliveryCalendarItems() {
+            return appState.projects.filter(project => {
+                if (isDeliveryCompleted(project)) return false;
+                if (getCurrentWorkflowStep(project) !== '생산') return false;
+                return !!project.confirmedDeliveryDate;
+            });
+        }
+
+        function renderDeliveryCalendar() {
+            const grid = document.getElementById('deliveryCalendarGrid');
+            const label = document.getElementById('calendarMonthLabel');
+            if (!grid || !label) return;
+
+            const year = deliveryCalendarMonth.getFullYear();
+            const month = deliveryCalendarMonth.getMonth();
+            label.textContent = `${year}.${String(month + 1).padStart(2, '0')}`;
+
+            const firstDay = new Date(year, month, 1);
+            const startDay = firstDay.getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const items = getDeliveryCalendarItems();
+            const itemsByDate = {};
+            appState.calendarItemsByDate = {};
+            items.forEach(project => {
+                const key = project.confirmedDeliveryDate;
+                if (!itemsByDate[key]) itemsByDate[key] = [];
+                itemsByDate[key].push({ id: project.id, name: project.projectName, type: 'product' });
+                if (!appState.calendarItemsByDate[key]) appState.calendarItemsByDate[key] = [];
+                appState.calendarItemsByDate[key].push({ id: project.id, name: project.projectName, type: 'product' });
+                if (project.wpConfirmedDeliveryDate) {
+                    const wpKey = project.wpConfirmedDeliveryDate;
+                    if (!itemsByDate[wpKey]) itemsByDate[wpKey] = [];
+                    itemsByDate[wpKey].push({ id: project.id, name: `W/P:${project.projectName}`, type: 'wp' });
+                    if (!appState.calendarItemsByDate[wpKey]) appState.calendarItemsByDate[wpKey] = [];
+                    appState.calendarItemsByDate[wpKey].push({ id: project.id, name: `W/P:${project.projectName}`, type: 'wp' });
+                }
+            });
+
+            const cells = [];
+            const today = new Date();
+            const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            for (let i = 0; i < startDay; i += 1) {
+                cells.push('<div class="calendar-day calendar-day--empty"></div>');
+            }
+            for (let day = 1; day <= daysInMonth; day += 1) {
+                const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const names = itemsByDate[dateKey] || [];
+                const listHtml = names.slice(0, 4).map(item => `
+                    <button type="button" class="calendar-event ${item.type === 'wp' ? 'calendar-event--wp' : ''}" onclick="openProjectView('${item.id}')">
+                        ${item.name}
+                    </button>
+                `).join('');
+                const overflow = names.length > 4
+                    ? `<button type="button" class="text-[10px] text-blue-600 hover:text-blue-700 underline" onclick="openCalendarDayModal('${dateKey}')">+${names.length - 4} more</button>`
+                    : '';
+                const isToday = dateKey === todayKey;
+                const dayOfWeek = new Date(year, month, day).getDay();
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                cells.push(`
+                    <div class="calendar-day ${isToday ? 'calendar-day--today' : ''}">
+                        <div class="calendar-date ${isWeekend ? 'calendar-date--weekend' : ''}">${day}</div>
+                        <div class="space-y-1">${listHtml}${overflow}</div>
+                    </div>
+                `);
+            }
+            const totalCells = 42;
+            while (cells.length < totalCells) {
+                cells.push('<div class="calendar-day calendar-day--empty"></div>');
+            }
+            grid.innerHTML = cells.join('');
+        }
+
+        function openCalendarDayModal(dateKey) {
+            const title = document.getElementById('calendarDayTitle');
+            const list = document.getElementById('calendarDayList');
+            const modal = document.getElementById('calendarDayModal');
+            if (!title || !list || !modal) return;
+            const items = (appState.calendarItemsByDate && appState.calendarItemsByDate[dateKey]) || [];
+            title.textContent = `납기 목록: ${dateKey}`;
+            if (items.length === 0) {
+                list.innerHTML = '<div class="text-sm text-gray-500">표시할 일정이 없습니다.</div>';
+            } else {
+                list.innerHTML = items.map(item => `
+                    <button type="button" class="w-full text-left px-3 py-2 rounded-md bg-gray-50 hover:bg-gray-100" onclick="openProjectView('${item.id}')">
+                        <span class="${item.type === 'wp' ? 'text-red-600' : 'text-blue-600'}">${item.name}</span>
+                    </button>
+                `).join('');
+            }
+            modal.classList.remove('hidden');
+        }
+
+        function closeCalendarDayModal() {
+            const modal = document.getElementById('calendarDayModal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+        }
+
         function renderRoleActions(container) {
             if (!appState.isLoggedIn || !appState.user || !appState.user.department) {
                 container.classList.add('hidden');
@@ -2845,13 +3309,15 @@
                 actions.push(
                     { label: '새 프로젝트', onClick: 'openNewProjectModal()', count: 0 },
                     { label: '저장된 프로젝트', onClick: 'filterSalesDrafts()', count: countSalesDrafts() },
-                    { label: '납품 완료 처리', onClick: 'filterByStatus(\'전표 발행\')', count: countInvoiceIssued() }
+                    { label: '납품 완료 처리', onClick: 'filterByStatus(\'전표 발행\')', count: countInvoiceIssued() },
+                    { label: 'W/P 관리', onClick: 'filterWpPending()', count: countWpPending() }
                 );
             } else if (dept === '경리') {
                 actions.push(
                     { label: '새 접수목록', onClick: 'filterByAccountingTask(\'accounting_reception\')', count: countAccountingReception() },
                     { label: '전표 발행하기', onClick: 'filterByStatus(\'준비 완료\')', count: countReadyCompleted() },
-                    { label: '납품 완료 처리', onClick: 'filterByAccountingTask(\'accounting_delivery\')', count: countInvoiceIssued() }
+                    { label: '납품 완료 처리', onClick: 'filterByAccountingTask(\'accounting_delivery\')', count: countInvoiceIssued() },
+                    { label: 'W/P 관리', onClick: 'filterWpPending()', count: countWpPending() }
                 );
             } else if (dept === '설계') {
                 actions.push(
@@ -2860,7 +3326,8 @@
             } else if (dept === '생산') {
                 actions.push(
                     { label: '생산 미확인', onClick: 'filterByProductionStatus(\'production_pending\')', count: countProductionPending() },
-                    { label: '납품 준비 완료하기', onClick: 'filterByProductionStatus(\'production_in_progress\')', count: countProductionInProgress() }
+                    { label: '납품 준비 완료하기', onClick: 'filterByProductionStatus(\'production_in_progress\')', count: countProductionInProgress() },
+                    { label: 'W/P 관리', onClick: 'filterWpPending()', count: countWpPending() }
                 );
             } else if (dept === '마스터') {
                 actions.push(
@@ -2908,6 +3375,7 @@
                 const currentStep = getCurrentWorkflowStep(project);
                 return !isProjectClosed(project) && currentStep === department;
             });
+            resetVisibleCount();
             renderProjects();
             focusProjectList();
         }
@@ -2927,6 +3395,7 @@
                     appState.filteredProjects = appState.projects.filter(project => project.status === status);
                 }
             }
+            resetVisibleCount();
             renderProjects();
         }
 
@@ -2944,6 +3413,7 @@
             } else {
                 appState.filteredProjects = [...appState.projects];
             }
+            resetVisibleCount();
             renderProjects();
         }
 
@@ -2954,16 +3424,19 @@
                 if (getCurrentWorkflowStep(project) !== '생산') return false;
                 return status === 'production_pending' ? !isProductionStarted(project) : isProductionStarted(project);
             });
+            resetVisibleCount();
             renderProjects();
         }
 
         function filterByDeliveryCompleted() {
             appState.currentFilter = 'delivery_completed';
             appState.filteredProjects = appState.projects.filter(project => !!project.deliveryCompletedAt);
+            resetVisibleCount();
             renderProjects();
         }
 
         function applyCurrentFilter() {
+            resetVisibleCount();
             if (appState.currentFilter === 'none') {
                 appState.filteredProjects = [];
             } else if (appState.currentFilter === 'all') {
@@ -2973,6 +3446,12 @@
                     if (isProjectClosed(project)) return false;
                     const workflow = project.workflow || {};
                     return workflow['영업'] && !workflow['영업'].completed;
+                });
+            } else if (appState.currentFilter === 'wp_pending') {
+                appState.filteredProjects = appState.projects.filter(project => {
+                    if (!project.wpConfirmedDeliveryDate) return false;
+                    if (project.wpDeliveryCompletedAt) return false;
+                    return getCurrentWorkflowStep(project) === '생산';
                 });
             } else if (['진행중', '보류', '확인중'].includes(appState.currentFilter)) {
                 appState.filteredProjects = appState.projects.filter(p => p.status === appState.currentFilter);
@@ -3101,6 +3580,11 @@
                 renderDesignFiles(project);
                 renderAccountingSummary(project);
                 document.getElementById('designMemo').value = (project.design && project.design.memo) || '';
+                const submitBtn = document.getElementById('submitBtn');
+                if (submitBtn) {
+                    submitBtn.textContent = '생산부로 전달';
+                    submitBtn.dataset.action = 'design_forward';
+                }
                 document.getElementById('saveBtn').classList.add('hidden');
             } else if (currentStep === '생산') {
                 if (!project.production) project.production = {};
@@ -3109,6 +3593,12 @@
                 resetProductionForm();
                 renderProductionContext(project);
                 document.getElementById('productionMemo').value = (project.production && project.production.memo) || '';
+                document.getElementById('confirmedDeliveryDate').value =
+                    project.confirmedDeliveryDate || project.deliveryDate || project.requestDate || '';
+                document.getElementById('wpConfirmedDeliveryDate').value =
+                    project.wpConfirmedDeliveryDate ||
+                    (project.accounting && project.accounting.wpRequestDueDate) ||
+                    '';
                 const productionCompleteBtn = document.getElementById('productionCompleteBtn');
                 if (project.production && project.production.started) {
                     productionCompleteBtn.textContent = '납품준비완료';
@@ -3552,6 +4042,10 @@
                     memo: document.getElementById('productionMemo').value.trim(),
                     files: await buildFilePayload(appState.attachedFilesProduction, projectId, 'production')
                 };
+                const confirmedDeliveryValue = document.getElementById('confirmedDeliveryDate').value;
+                formData.confirmedDeliveryDate = confirmedDeliveryValue || formData.requestDate;
+                const wpConfirmedValue = document.getElementById('wpConfirmedDeliveryDate').value;
+                formData.wpConfirmedDeliveryDate = wpConfirmedValue || null;
                 if (submitAction === 'start' && !formData.production.memo) {
                     formData.production.memo = '-';
                 }
@@ -3583,6 +4077,9 @@
                     }
                     if (isDesignMode && editMode === 'design' && !submitAction && submitBtn && submitBtn.dataset.action === 'design_forward') {
                         submitAction = 'design_forward';
+                    }
+                    if (isDesignMode && currentStep === '설계' && formData.design && !formData.design.memo) {
+                        formData.design.memo = '-';
                     }
 
                     if (editMode === 'sales') {
@@ -3921,6 +4418,7 @@
                     });
                 });
             }
+            resetVisibleCount();
             renderProjects();
         }
 
@@ -3947,6 +4445,7 @@
         window.filterByDeliveryCompleted = filterByDeliveryCompleted;
         window.filterByAccountingTask = filterByAccountingTask;
         window.filterSalesDrafts = filterSalesDrafts;
+        window.filterWpPending = filterWpPending;
         window.processProject = processProject;
         window.deleteProject = deleteProject;
         window.openDeleteHistoryModal = openDeleteHistoryModal;
@@ -3956,6 +4455,12 @@
         window.deleteEarlyDeliveryMemo = deleteEarlyDeliveryMemo;
         window.markDeliveryCompleted = markDeliveryCompleted;
         window.markInvoiceIssued = markInvoiceIssued;
+        window.editConfirmedDeliveryDate = editConfirmedDeliveryDate;
+        window.editWpConfirmedDeliveryDate = editWpConfirmedDeliveryDate;
+        window.editQuickMemo = editQuickMemo;
+        window.deleteQuickMemo = deleteQuickMemo;
+        window.viewQuickMemoHistory = viewQuickMemoHistory;
+        window.markWpDeliveryCompleted = markWpDeliveryCompleted;
         window.cancelReadyCompletion = cancelReadyCompletion;
         window.removeFile = removeFile;
         window.removeExistingFile = removeExistingFile;
