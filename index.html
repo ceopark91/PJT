@@ -177,6 +177,25 @@
                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
 
+                <!-- 경리부 업무 -->
+                <div id="accountingTaskSection" class="p-3 sm:p-4 border-b border-gray-200 hidden">
+                    <h3 class="text-sm font-medium text-gray-700 mb-3">경리부 업무</h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByAccountingTask('accounting_reception')">
+                            <span class="text-sm text-gray-600">경리부 접수목록</span>
+                            <span id="countAccountingReception" class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByAccountingTask('accounting_invoice')">
+                            <span class="text-sm text-gray-600">경리부 전표 발행</span>
+                            <span id="countAccountingInvoice" class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">0</span>
+                        </div>
+                        <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByAccountingTask('accounting_delivery')">
+                            <span class="text-sm text-gray-600">경리부 납품 완료</span>
+                            <span id="countAccountingDelivery" class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">0</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 업무 흐름 -->
                 <div class="p-3 sm:p-4 border-b border-gray-200">
                     <h3 class="text-sm font-medium text-gray-700 mb-3">업무 흐름</h3>
@@ -209,6 +228,10 @@
                             <span class="text-sm text-gray-600">준비 완료</span>
                             <span id="countCompleted" class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">0</span>
                         </div>
+                        <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByStatus('전표 발행')">
+                            <span class="text-sm text-gray-600">전표 발행</span>
+                            <span id="countInvoiceIssued" class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">0</span>
+                        </div>
                         <div class="flex justify-between items-center p-2 rounded-lg hover:bg-gray-50 cursor-pointer" onclick="filterByDeliveryCompleted()">
                             <span class="text-sm text-gray-600">납품 완료</span>
                             <span id="countDeliveryCompleted" class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">0</span>
@@ -240,6 +263,10 @@
                             <div class="text-center">
                                 <div class="font-semibold" id="completedCount">0</div>
                                 <div class="opacity-90">준비 완료</div>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-semibold" id="invoiceIssuedCount">0</div>
+                                <div class="opacity-90">전표 발행</div>
                             </div>
                             <div class="text-center">
                                 <div class="font-semibold" id="deliveryCompletedCount">0</div>
@@ -305,24 +332,25 @@
                                 <button id="loginButton" class="w-full px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
                                     Firebase 로그인
                                 </button>
-                                <div class="mt-6 border-t border-gray-200 pt-6">
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">데모 로그인 코드</label>
-                                    <div class="flex space-x-2">
-                                        <input type="text" id="demoLoginCode" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="1~5 입력">
-                                        <button id="demoLoginBtn" class="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800 transition-colors">데모 로그인</button>
-                                    </div>
-                                    <div class="mt-3 text-xs text-gray-500">
-                                        1: 영업부 · 2: 경리부 · 3: 설계부 · 4: 생산부 · 5: 마스터
-                                    </div>
-                                </div>
-                            </div>
+                    <div class="mt-6 border-t border-gray-200 pt-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">데모 로그인 코드</label>
+                        <div class="flex space-x-2">
+                            <input type="text" id="demoLoginCode" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="1~5 입력">
+                            <button id="demoLoginBtn" class="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800 transition-colors">데모 로그인</button>
+                        </div>
+                        <div class="mt-3 text-xs text-gray-500">
+                            1: 영업부 · 2: 경리부 · 3: 설계부 · 4: 생산부 · 5: 마스터
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
 
-                    <!-- 프로젝트 관리 화면 -->
-                    <div id="projectManagement" class="hidden">
-                        <!-- 프로젝트 목록 -->
-                        <div id="projectListCard" class="bg-white rounded-lg shadow">
+        <!-- 프로젝트 관리 화면 -->
+        <div id="projectManagement" class="hidden">
+            <div id="roleActionsCard" class="mb-4 hidden"></div>
+            <!-- 프로젝트 목록 -->
+            <div id="projectListCard" class="bg-white rounded-lg shadow">
                             <div class="px-6 py-4 border-b border-gray-200">
                                 <div class="flex justify-between items-center">
                                     <h3 class="text-lg font-medium text-gray-900">프로젝트 목록</h3>
@@ -429,6 +457,7 @@
                             <select id="status" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
                                 <option value="진행중">접수중</option>
                                 <option value="준비 완료">준비 완료</option>
+                                <option value="전표 발행">전표 발행</option>
                                 <option value="보류">보류</option>
                             </select>
                         </div>
@@ -995,7 +1024,7 @@
             filteredProjects: [],
             currentEditId: null,
             user: null,
-            currentFilter: 'all',
+            currentFilter: 'none',
             attachedFilesRequest: [],
             attachedFilesEtc: [],
             attachedFilesDesign: [],
@@ -2103,6 +2132,8 @@
             const googleSignOut = document.getElementById('googleSignOut');
             const loginRequired = document.getElementById('loginRequired');
             const projectManagement = document.getElementById('projectManagement');
+            const accountingTaskSection = document.getElementById('accountingTaskSection');
+            const roleActionsCard = document.getElementById('roleActionsCard');
 
             if (appState.isLoggedIn && appState.user) {
                 const deptLabel = appState.user.department ? ` (${appState.user.department})` : '';
@@ -2111,12 +2142,26 @@
                 googleSignOut.classList.remove('hidden');
                 loginRequired.classList.add('hidden');
                 projectManagement.classList.remove('hidden');
+                if (accountingTaskSection) {
+                    const isAccountingDept = appState.user.department === '경리' || appState.user.department === '마스터';
+                    accountingTaskSection.classList.toggle('hidden', !isAccountingDept);
+                }
+                if (roleActionsCard) {
+                    renderRoleActions(roleActionsCard);
+                }
             } else {
                 userInfo.textContent = '';
                 googleSignIn.classList.remove('hidden');
                 googleSignOut.classList.add('hidden');
                 loginRequired.classList.remove('hidden');
                 projectManagement.classList.add('hidden');
+                if (accountingTaskSection) {
+                    accountingTaskSection.classList.add('hidden');
+                }
+                if (roleActionsCard) {
+                    roleActionsCard.classList.add('hidden');
+                    roleActionsCard.innerHTML = '';
+                }
             }
         }
 
@@ -2133,7 +2178,7 @@
                 appState.projects = [];
                 saveProjectsToStorage();
             }
-            appState.filteredProjects = [...appState.projects];
+            applyCurrentFilter();
             updateStatistics();
             renderProjects();
             focusProjectList();
@@ -2281,9 +2326,24 @@
         function markDeliveryCompleted(projectId) {
             const project = appState.projects.find(p => p.id === projectId);
             if (!project) return;
-            if (!isReadyCompleted(project)) return;
+            if (!isInvoiceIssued(project)) return;
             if (!confirm('납품 완료로 처리할까요?')) return;
             project.deliveryCompletedAt = new Date().toISOString().split('T')[0];
+            project.department = '';
+            saveProjectsToStorage();
+            applyCurrentFilter();
+            updateStatistics();
+            renderProjects();
+            focusProjectList();
+        }
+
+        function markInvoiceIssued(projectId) {
+            const project = appState.projects.find(p => p.id === projectId);
+            if (!project) return;
+            if (!isReadyCompleted(project)) return;
+            if (!confirm('전표 발행으로 처리할까요?')) return;
+            project.invoiceIssuedAt = new Date().toISOString().split('T')[0];
+            project.status = '전표 발행';
             project.department = '';
             saveProjectsToStorage();
             applyCurrentFilter();
@@ -2298,6 +2358,7 @@
             if (!isReadyCompleted(project)) return;
             if (!confirm('준비 완료를 취소하고 이전 단계로 이동할까요?')) return;
             project.deliveryCompletedAt = null;
+            project.invoiceIssuedAt = null;
             project.status = '진행중';
             project.department = '생산';
             if (!project.workflow) project.workflow = {};
@@ -2352,7 +2413,7 @@
         }
 
         async function flushSyncToFirebase() {
-            if (!initFirebase()) return;
+            if (!initFirebase()) return false;
             if (syncTimer) {
                 clearTimeout(syncTimer);
                 syncTimer = null;
@@ -2360,24 +2421,27 @@
             if (syncInFlight) {
                 await waitForSyncCompletion();
             }
+            let syncOk = true;
             if (syncPending) {
-                await syncProjectsToFirebase();
+                syncOk = await syncProjectsToFirebase();
             } else {
-                await syncProjectsToFirebase();
+                syncOk = await syncProjectsToFirebase();
             }
             await waitForSyncCompletion();
             if (syncPending) {
-                await syncProjectsToFirebase();
+                const nextOk = await syncProjectsToFirebase();
+                syncOk = syncOk && nextOk;
                 await waitForSyncCompletion();
             }
+            return syncOk;
         }
 
         async function syncProjectsToFirebase() {
-            if (syncInFlight) return;
+            if (syncInFlight) return false;
             syncInFlight = true;
             syncPending = false;
             try {
-                if (!initFirebase()) return;
+                if (!initFirebase()) return false;
                 const batch = firestoreDb.batch();
                 const projectsRef = firestoreDb.collection(FIREBASE_PATHS.PROJECTS);
                 const deletedRef = firestoreDb.collection(FIREBASE_PATHS.DELETED);
@@ -2419,8 +2483,10 @@
                 });
 
                 await batch.commit();
+                return true;
             } catch (err) {
                 console.error('syncProjectsToFirebase failed', err);
+                return false;
             } finally {
                 syncInFlight = false;
                 if (syncPending) {
@@ -2429,7 +2495,7 @@
             }
         }
 
-        async function loadProjectsFromFirebase() {
+        async function loadProjectsFromFirebase(options = {}) {
             try {
                 if (!initFirebase()) return;
                 const projectsSnapshot = await firestoreDb.collection(FIREBASE_PATHS.PROJECTS).get();
@@ -2452,15 +2518,19 @@
                     return composeProjectFromFirestore({ id: doc.id, ...base }, sections);
                 });
                 appState.projects = await Promise.all(projectPromises);
-                appState.filteredProjects = [...appState.projects];
-                updateStatistics();
-                renderProjects();
+                applyCurrentFilter();
+                if (options.render !== false) {
+                    updateStatistics();
+                    renderProjects();
+                }
             } catch (err) {
                 console.error('loadProjectsFromFirebase failed', err);
                 appState.projects = [];
-                appState.filteredProjects = [];
-                updateStatistics();
-                renderProjects();
+                applyCurrentFilter();
+                if (options.render !== false) {
+                    updateStatistics();
+                    renderProjects();
+                }
             }
         }
 
@@ -2479,8 +2549,9 @@
         function updateStatistics() {
             const total = appState.projects.length;
             const readyCompleted = appState.projects.filter(p => isReadyCompleted(p)).length;
+            const invoiceIssued = appState.projects.filter(p => isInvoiceIssued(p)).length;
             const deliveryCompleted = appState.projects.filter(p => isDeliveryCompleted(p)).length;
-            const completed = readyCompleted + deliveryCompleted;
+            const completed = readyCompleted + invoiceIssued + deliveryCompleted;
 
             const pendingProjects = appState.projects.filter(p => !isProjectClosed(p));
             const salesCount = pendingProjects.filter(p => getCurrentWorkflowStep(p) === '영업').length;
@@ -2490,6 +2561,9 @@
             const productionInProgressCount = pendingProjects.filter(p => getCurrentWorkflowStep(p) === '생산' && isProductionStarted(p)).length;
             const receptionCount = pendingProjects.filter(p => p.status === '진행중' && getCurrentWorkflowStep(p) !== '생산').length;
             const reviewCount = productionPendingCount;
+            const accountingReceptionCount = pendingProjects.filter(p => p.status === '진행중' && getCurrentWorkflowStep(p) === '경리').length;
+            const accountingInvoiceCount = readyCompleted;
+            const accountingDeliveryCount = invoiceIssued;
 
             // 통계 업데이트
             document.getElementById('countAll').textContent = total;
@@ -2499,7 +2573,14 @@
             document.getElementById('countProductionPending').textContent = productionPendingCount;
             document.getElementById('countProductionInProgress').textContent = productionInProgressCount;
             document.getElementById('countCompleted').textContent = readyCompleted;
+            document.getElementById('countInvoiceIssued').textContent = invoiceIssued;
             document.getElementById('countDeliveryCompleted').textContent = deliveryCompleted;
+            const accountingReceptionEl = document.getElementById('countAccountingReception');
+            const accountingInvoiceEl = document.getElementById('countAccountingInvoice');
+            const accountingDeliveryEl = document.getElementById('countAccountingDelivery');
+            if (accountingReceptionEl) accountingReceptionEl.textContent = accountingReceptionCount;
+            if (accountingInvoiceEl) accountingInvoiceEl.textContent = accountingInvoiceCount;
+            if (accountingDeliveryEl) accountingDeliveryEl.textContent = accountingDeliveryCount;
 
             // 통계 카드 업데이트
             document.getElementById('totalProjects').textContent = total;
@@ -2507,6 +2588,7 @@
             document.getElementById('reviewCount').textContent = reviewCount;
             document.getElementById('inProgressCount').textContent = productionInProgressCount;
             document.getElementById('completedCount').textContent = readyCompleted;
+            document.getElementById('invoiceIssuedCount').textContent = invoiceIssued;
             document.getElementById('deliveryCompletedCount').textContent = deliveryCompleted;
 
             // 마지막 업데이트 시간
@@ -2541,13 +2623,16 @@
                 ? (productionStarted ? '생산 (진행중)' : '생산 (확인중)')
                 : currentWorkflowStep;
             const readyCompleted = isReadyCompleted(project);
+            const invoiceIssued = isInvoiceIssued(project);
             const statusText = isDeliveryCompleted(project)
                 ? '납품 완료'
-                : (readyCompleted
-                    ? '준비 완료'
-                    : (isProductionStep
-                        ? (productionStarted ? '생산 진행중' : '생산 확인중')
-                        : (project.status === '진행중' ? '접수중' : project.status)));
+                : (invoiceIssued
+                    ? '전표 발행'
+                    : (readyCompleted
+                        ? '준비 완료'
+                        : (isProductionStep
+                            ? (productionStarted ? '생산 진행중' : '생산 확인중')
+                            : (project.status === '진행중' ? '접수중' : project.status))));
             return `
                     <tr class="hover:bg-gray-50">
                         <td class="px-4 sm:px-6 py-3 sm:py-4 text-sm font-medium text-gray-900 sm:whitespace-nowrap" data-label="번호">
@@ -2573,6 +2658,7 @@
                                 statusText === '생산 진행중' ? 'bg-orange-100 text-orange-800' :
                                 statusText === '접수중' ? 'bg-yellow-100 text-yellow-800' :
                                 statusText === '준비 완료' ? 'bg-green-100 text-green-800' :
+                                statusText === '전표 발행' ? 'bg-indigo-100 text-indigo-800' :
                                 statusText === '납품 완료' ? 'bg-emerald-100 text-emerald-800' :
                                 'bg-red-100 text-red-800'
                             }">${statusText}</span>
@@ -2583,7 +2669,11 @@
                             <div class="flex flex-wrap gap-2 justify-start mobile-actions">
                             ${isReadyCompleted(project) ? 
                                 `<button onclick="cancelReadyCompletion('${project.id}')" class="bg-gray-600 text-white px-3 py-1 rounded text-xs hover:bg-gray-700 transition-colors">준비완료 취소</button>
-                                 <button onclick="markDeliveryCompleted('${project.id}')" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700 transition-colors">납품 완료</button>` :
+                                 <button onclick="markInvoiceIssued('${project.id}')" class="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700 transition-colors">전표 발행</button>` :
+                                ''
+                            }
+                            ${isInvoiceIssued(project) ? 
+                                `<button onclick="markDeliveryCompleted('${project.id}')" class="bg-emerald-600 text-white px-3 py-1 rounded text-xs hover:bg-emerald-700 transition-colors">납품 완료</button>` :
                                 ''
                             }
                             ${isDeliveryCompleted(project) ? 
@@ -2650,12 +2740,16 @@
             return !!project.deliveryCompletedAt;
         }
 
+        function isInvoiceIssued(project) {
+            return (!!project.invoiceIssuedAt || project.status === '전표 발행') && !isDeliveryCompleted(project);
+        }
+
         function isReadyCompleted(project) {
-            return (project.status === '완료' || project.status === '준비 완료') && !isDeliveryCompleted(project);
+            return (project.status === '완료' || project.status === '준비 완료') && !isInvoiceIssued(project) && !isDeliveryCompleted(project);
         }
 
         function isProjectClosed(project) {
-            return isReadyCompleted(project) || isDeliveryCompleted(project);
+            return isReadyCompleted(project) || isInvoiceIssued(project) || isDeliveryCompleted(project);
         }
 
         function canEditAccounting(project) {
@@ -2685,6 +2779,128 @@
             return !!(project.workflow && project.workflow['영업'] && project.workflow['영업'].completed);
         }
 
+        function filterSalesDrafts() {
+            appState.currentFilter = 'sales_draft';
+            appState.filteredProjects = appState.projects.filter(project => {
+                if (isProjectClosed(project)) return false;
+                const workflow = project.workflow || {};
+                return workflow['영업'] && !workflow['영업'].completed;
+            });
+            renderProjects();
+        }
+
+        function countReadyCompleted() {
+            return appState.projects.filter(project => isReadyCompleted(project)).length;
+        }
+
+        function countInvoiceIssued() {
+            return appState.projects.filter(project => isInvoiceIssued(project)).length;
+        }
+
+        function countAccountingReception() {
+            return appState.projects.filter(project => {
+                if (isProjectClosed(project)) return false;
+                return project.status === '진행중' && getCurrentWorkflowStep(project) === '경리';
+            }).length;
+        }
+
+        function countSalesDrafts() {
+            return appState.projects.filter(project => {
+                if (isProjectClosed(project)) return false;
+                const workflow = project.workflow || {};
+                return workflow['영업'] && !workflow['영업'].completed;
+            }).length;
+        }
+
+        function countDepartmentPending(department) {
+            return appState.projects.filter(project => {
+                if (isProjectClosed(project)) return false;
+                return getCurrentWorkflowStep(project) === department;
+            }).length;
+        }
+
+        function countProductionPending() {
+            return appState.projects.filter(project => {
+                if (isProjectClosed(project)) return false;
+                return getCurrentWorkflowStep(project) === '생산' && !isProductionStarted(project);
+            }).length;
+        }
+
+        function countProductionInProgress() {
+            return appState.projects.filter(project => {
+                if (isProjectClosed(project)) return false;
+                return getCurrentWorkflowStep(project) === '생산' && isProductionStarted(project);
+            }).length;
+        }
+
+        function renderRoleActions(container) {
+            if (!appState.isLoggedIn || !appState.user || !appState.user.department) {
+                container.classList.add('hidden');
+                container.innerHTML = '';
+                return;
+            }
+            const dept = appState.user.department;
+            const actions = [];
+            if (dept === '영업') {
+                actions.push(
+                    { label: '새 프로젝트', onClick: 'openNewProjectModal()', count: 0 },
+                    { label: '저장된 프로젝트', onClick: 'filterSalesDrafts()', count: countSalesDrafts() },
+                    { label: '납품 완료 처리', onClick: 'filterByStatus(\'전표 발행\')', count: countInvoiceIssued() }
+                );
+            } else if (dept === '경리') {
+                actions.push(
+                    { label: '새 접수목록', onClick: 'filterByAccountingTask(\'accounting_reception\')', count: countAccountingReception() },
+                    { label: '전표 발행하기', onClick: 'filterByStatus(\'준비 완료\')', count: countReadyCompleted() },
+                    { label: '납품 완료 처리', onClick: 'filterByAccountingTask(\'accounting_delivery\')', count: countInvoiceIssued() }
+                );
+            } else if (dept === '설계') {
+                actions.push(
+                    { label: '설계 진행하기', onClick: 'filterByDepartment(\'설계\')', count: countDepartmentPending('설계') }
+                );
+            } else if (dept === '생산') {
+                actions.push(
+                    { label: '생산 미확인', onClick: 'filterByProductionStatus(\'production_pending\')', count: countProductionPending() },
+                    { label: '납품 준비 완료하기', onClick: 'filterByProductionStatus(\'production_in_progress\')', count: countProductionInProgress() }
+                );
+            } else if (dept === '마스터') {
+                actions.push(
+                    { label: '전체', onClick: 'filterByStatus(\'all\')', count: appState.projects.length },
+                    { label: '영업 저장', onClick: 'filterSalesDrafts()', count: countSalesDrafts() },
+                    { label: '경리 접수', onClick: 'filterByAccountingTask(\'accounting_reception\')', count: countAccountingReception() },
+                    { label: '준비 완료', onClick: 'filterByStatus(\'준비 완료\')', count: countReadyCompleted() },
+                    { label: '전표 발행', onClick: 'filterByStatus(\'전표 발행\')', count: countInvoiceIssued() },
+                    { label: '설계 진행', onClick: 'filterByDepartment(\'설계\')', count: countDepartmentPending('설계') },
+                    { label: '생산 미확인', onClick: 'filterByProductionStatus(\'production_pending\')', count: countProductionPending() },
+                    { label: '생산 진행중', onClick: 'filterByProductionStatus(\'production_in_progress\')', count: countProductionInProgress() }
+                );
+            }
+
+            if (actions.length === 0) {
+                container.classList.add('hidden');
+                container.innerHTML = '';
+                return;
+            }
+
+            const deptLabel = dept === '마스터' ? '전체 권한' : `${dept}부`;
+            container.classList.remove('hidden');
+            container.innerHTML = `
+                <div class="bg-white rounded-lg shadow p-4 sm:p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-gray-900">나의 할일</h3>
+                        <span class="text-xs text-gray-500">${deptLabel}</span>
+                    </div>
+                    <div class="flex flex-wrap gap-2">
+                        ${actions.map(action => `
+                            <button type="button" class="px-3 py-2 bg-blue-50 text-blue-700 rounded-md hover:bg-blue-100 transition-colors text-sm" onclick="${action.onClick}">
+                                <span class="font-medium">${action.label}</span>
+                                <span class="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700">${action.count ?? 0}</span>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
         // 부서별 필터링
         function filterByDepartment(department) {
             appState.currentFilter = department;
@@ -2705,9 +2921,28 @@
                 appState.currentFilter = status;
                 if (status === '준비 완료') {
                     appState.filteredProjects = appState.projects.filter(project => isReadyCompleted(project));
+                } else if (status === '전표 발행') {
+                    appState.filteredProjects = appState.projects.filter(project => isInvoiceIssued(project));
                 } else {
                     appState.filteredProjects = appState.projects.filter(project => project.status === status);
                 }
+            }
+            renderProjects();
+        }
+
+        function filterByAccountingTask(task) {
+            appState.currentFilter = task;
+            if (task === 'accounting_reception') {
+                appState.filteredProjects = appState.projects.filter(project => {
+                    if (isProjectClosed(project)) return false;
+                    return project.status === '진행중' && getCurrentWorkflowStep(project) === '경리';
+                });
+            } else if (task === 'accounting_invoice') {
+                appState.filteredProjects = appState.projects.filter(project => isReadyCompleted(project));
+            } else if (task === 'accounting_delivery') {
+                appState.filteredProjects = appState.projects.filter(project => isInvoiceIssued(project));
+            } else {
+                appState.filteredProjects = [...appState.projects];
             }
             renderProjects();
         }
@@ -2729,14 +2964,33 @@
         }
 
         function applyCurrentFilter() {
-            if (appState.currentFilter === 'all') {
+            if (appState.currentFilter === 'none') {
+                appState.filteredProjects = [];
+            } else if (appState.currentFilter === 'all') {
                 appState.filteredProjects = [...appState.projects];
+            } else if (appState.currentFilter === 'sales_draft') {
+                appState.filteredProjects = appState.projects.filter(project => {
+                    if (isProjectClosed(project)) return false;
+                    const workflow = project.workflow || {};
+                    return workflow['영업'] && !workflow['영업'].completed;
+                });
             } else if (['진행중', '보류', '확인중'].includes(appState.currentFilter)) {
                 appState.filteredProjects = appState.projects.filter(p => p.status === appState.currentFilter);
             } else if (appState.currentFilter === '준비 완료') {
                 appState.filteredProjects = appState.projects.filter(p => isReadyCompleted(p));
+            } else if (appState.currentFilter === '전표 발행') {
+                appState.filteredProjects = appState.projects.filter(p => isInvoiceIssued(p));
             } else if (appState.currentFilter === 'delivery_completed') {
                 appState.filteredProjects = appState.projects.filter(project => !!project.deliveryCompletedAt);
+            } else if (appState.currentFilter === 'accounting_reception') {
+                appState.filteredProjects = appState.projects.filter(project => {
+                    if (isProjectClosed(project)) return false;
+                    return project.status === '진행중' && getCurrentWorkflowStep(project) === '경리';
+                });
+            } else if (appState.currentFilter === 'accounting_invoice') {
+                appState.filteredProjects = appState.projects.filter(project => isReadyCompleted(project));
+            } else if (appState.currentFilter === 'accounting_delivery') {
+                appState.filteredProjects = appState.projects.filter(project => isInvoiceIssued(project));
             } else if (appState.currentFilter === 'production_pending' || appState.currentFilter === 'production_in_progress') {
                 appState.filteredProjects = appState.projects.filter(project => {
                     if (isProjectClosed(project)) return false;
@@ -3112,10 +3366,12 @@
                 { id: 'production_pending', label: '생산 확인중' },
                 { id: 'production_in_progress', label: '생산 진행중' },
                 { id: 'ready', label: '준비완료' },
+                { id: 'invoice_issued', label: '전표 발행' },
                 { id: 'delivered', label: '납품완료' }
             ];
             const productionStarted = isProductionStarted(project);
             const readyCompleted = isReadyCompleted(project);
+            const invoiceIssued = isInvoiceIssued(project);
             const deliveryCompleted = isDeliveryCompleted(project);
 
             workflowSteps.innerHTML = displaySteps.map(step => {
@@ -3126,29 +3382,36 @@
                     if (project.workflow && project.workflow[step.id] && project.workflow[step.id].completed) {
                         status = 'completed';
                         text = `${step.label} ✓`;
-                    } else if (step.id === currentStep && !readyCompleted && !deliveryCompleted) {
+                    } else if (step.id === currentStep && !readyCompleted && !invoiceIssued && !deliveryCompleted) {
                         status = 'active';
                         text = `${step.label} 진행중`;
                     }
                 } else if (step.id === 'production_pending') {
-                    if (productionStarted || readyCompleted || deliveryCompleted) {
+                    if (productionStarted || readyCompleted || invoiceIssued || deliveryCompleted) {
                         status = 'completed';
                         text = `${step.label} ✓`;
-                    } else if (currentStep === '생산' && !productionStarted && !readyCompleted && !deliveryCompleted) {
+                    } else if (currentStep === '생산' && !productionStarted && !readyCompleted && !invoiceIssued && !deliveryCompleted) {
                         status = 'active';
                     }
                 } else if (step.id === 'production_in_progress') {
-                    if (readyCompleted || deliveryCompleted) {
+                    if (readyCompleted || invoiceIssued || deliveryCompleted) {
                         status = 'completed';
                         text = `${step.label} ✓`;
-                    } else if (currentStep === '생산' && productionStarted && !readyCompleted && !deliveryCompleted) {
+                    } else if (currentStep === '생산' && productionStarted && !readyCompleted && !invoiceIssued && !deliveryCompleted) {
                         status = 'active';
                     }
                 } else if (step.id === 'ready') {
-                    if (deliveryCompleted) {
+                    if (invoiceIssued || deliveryCompleted) {
                         status = 'completed';
                         text = `${step.label} ✓`;
                     } else if (readyCompleted) {
+                        status = 'active';
+                    }
+                } else if (step.id === 'invoice_issued') {
+                    if (deliveryCompleted) {
+                        status = 'completed';
+                        text = `${step.label} ✓`;
+                    } else if (invoiceIssued) {
                         status = 'active';
                     }
                 } else if (step.id === 'delivered') {
@@ -3280,12 +3543,18 @@
                     memo: document.getElementById('designMemo').value.trim(),
                     files: await buildFilePayload(appState.attachedFilesDesign, projectId, 'design')
                 };
+                if (submitAction === 'design_forward' && !formData.design.memo) {
+                    formData.design.memo = '-';
+                }
             }
             if (isProductionMode) {
                 formData.production = {
                     memo: document.getElementById('productionMemo').value.trim(),
                     files: await buildFilePayload(appState.attachedFilesProduction, projectId, 'production')
                 };
+                if (submitAction === 'start' && !formData.production.memo) {
+                    formData.production.memo = '-';
+                }
                 if (submitAction === 'start') {
                     formData.status = '진행중';
                 } else if (submitAction === 'complete') {
@@ -3586,15 +3855,29 @@
                 appState.projects.push(newProject);
             }
 
+            const useFirebase = initFirebase();
             saveProjectsToStorage();
-            setSubmitStatusMessage('Firebase 동기화 중...');
-            await flushSyncToFirebase();
-            setSubmitStatusMessage('');
-            await new Promise(resolve => setTimeout(resolve, 300));
-            
+            if (useFirebase) {
+                setSubmitStatusMessage('Firebase 동기화 중...');
+                const syncOk = await flushSyncToFirebase();
+                setSubmitStatusMessage('');
+                await new Promise(resolve => setTimeout(resolve, 300));
+                if (!syncOk) {
+                    await loadProjectsFromFirebase({ render: false });
+                    await loadDeletedProjectsFromFirebase();
+                    applyCurrentFilter();
+                    updateStatistics();
+                    renderProjects();
+                    alert('Firebase 동기화에 실패해서 저장하지 못했습니다. 다시 시도해 주세요.');
+                    return;
+                }
+                await loadProjectsFromFirebase({ render: false });
+                await loadDeletedProjectsFromFirebase();
+            }
+
             // 현재 필터 적용
             applyCurrentFilter();
-            
+
             updateStatistics();
             renderProjects();
             closeProjectModal();
@@ -3662,6 +3945,8 @@
         window.filterByStatus = filterByStatus;
         window.filterByProductionStatus = filterByProductionStatus;
         window.filterByDeliveryCompleted = filterByDeliveryCompleted;
+        window.filterByAccountingTask = filterByAccountingTask;
+        window.filterSalesDrafts = filterSalesDrafts;
         window.processProject = processProject;
         window.deleteProject = deleteProject;
         window.openDeleteHistoryModal = openDeleteHistoryModal;
@@ -3670,6 +3955,7 @@
         window.openEarlyDeliveryModal = openEarlyDeliveryModal;
         window.deleteEarlyDeliveryMemo = deleteEarlyDeliveryMemo;
         window.markDeliveryCompleted = markDeliveryCompleted;
+        window.markInvoiceIssued = markInvoiceIssued;
         window.cancelReadyCompletion = cancelReadyCompletion;
         window.removeFile = removeFile;
         window.removeExistingFile = removeExistingFile;
